@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { ArrowLeft } from 'lucide-react';
 import { fetchModels } from '../features/roleplay/roleplaySlice';
@@ -8,14 +8,23 @@ import Button from '../components/Button';
 const RoleplayViewerPage = () => {
   const { categoryId, modelId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const dispatch = useDispatch();
   const { models } = useSelector((state) => state.roleplay);
+
+  const userEmail = searchParams.get('email');
 
   useEffect(() => {
     if (models.length === 0) {
       dispatch(fetchModels());
     }
   }, [dispatch, models.length]);
+
+  // Helper function to navigate with email parameter
+  const navigateWithEmail = (path) => {
+    const url = userEmail ? `${path}?email=${encodeURIComponent(userEmail)}` : path;
+    navigate(url);
+  };
 
   const model = models.find((m) => m.id === parseInt(modelId));
 
@@ -24,7 +33,7 @@ const RoleplayViewerPage = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Roleplay not found</h2>
-          <Button onClick={() => navigate('/user')}>
+          <Button onClick={() => navigateWithEmail('/user')}>
             Back to Library
           </Button>
         </div>
@@ -39,7 +48,7 @@ const RoleplayViewerPage = () => {
           <Button
             variant="outline"
             icon={ArrowLeft}
-            onClick={() => navigate('/user')}
+            onClick={() => navigateWithEmail('/user')}
           >
             Back to Library
           </Button>

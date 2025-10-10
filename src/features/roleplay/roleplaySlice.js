@@ -73,6 +73,30 @@ export const updateModel = createAsyncThunk(
   }
 );
 
+export const deleteCategory = createAsyncThunk(
+  'roleplay/deleteCategory',
+  async (categoryId, { rejectWithValue }) => {
+    try {
+      await axiosInstance.delete(`/roleplay/categories/${categoryId}/`);
+      return categoryId;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to delete category');
+    }
+  }
+);
+
+export const deleteModel = createAsyncThunk(
+  'roleplay/deleteModel',
+  async (modelId, { rejectWithValue }) => {
+    try {
+      await axiosInstance.delete(`/roleplay/models/${modelId}/`);
+      return modelId;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to delete model');
+    }
+  }
+);
+
 const roleplaySlice = createSlice({
   name: 'roleplay',
   initialState: {
@@ -131,6 +155,14 @@ const roleplaySlice = createSlice({
         if (index !== -1) {
           state.models[index] = action.payload;
         }
+      })
+      .addCase(deleteCategory.fulfilled, (state, action) => {
+        state.categories = state.categories.filter(cat => cat.id !== action.payload);
+        // Also remove models associated with this category
+        state.models = state.models.filter(model => model.category !== action.payload);
+      })
+      .addCase(deleteModel.fulfilled, (state, action) => {
+        state.models = state.models.filter(model => model.id !== action.payload);
       });
   },
 });
