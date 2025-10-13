@@ -28,7 +28,7 @@ const Navbar = () => {
             </Link>
 
             <div className="flex space-x-4">
-              <Link
+              {/* <Link
                 to="/admin"
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
                   isActive('/admin')
@@ -38,9 +38,9 @@ const Navbar = () => {
               >
                 <Users className="w-4 h-4" />
                 <span className="font-medium">Admin Panel</span>
-              </Link>
+              </Link> */}
 
-              <Link
+              {/* <Link
                 to={buildUrl("/user")}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${
                   isActive('/user')
@@ -50,7 +50,7 @@ const Navbar = () => {
               >
                 <Clapperboard className="w-4 h-4" />
                 <span className="font-medium">User Side</span>
-              </Link>
+              </Link> */}
             </div>
           </div>
         </div>
