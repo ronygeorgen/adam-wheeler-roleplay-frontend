@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import { RefreshCw, Users, Clapperboard, UserCheck } from 'lucide-react';
 import UsersList from '../features/users/UsersList';
 import EditUserModal from '../features/users/EditUserModal';
@@ -22,31 +23,28 @@ const AdminPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [locationId, setLocationId] = useState(null);
 
-  // Extract location ID from users - UPDATED FOR NEW BACKEND
+  const location = useLocation();
+  // Step 1: Get locationId from GHL query param
   useEffect(() => {
-    if (users.length > 0) {
+    const params = new URLSearchParams(location.search);
+    const locFromQuery = params.get('location'); // matches ?location=XYZ
+    if (locFromQuery) {
+      setLocationId(locFromQuery);
+      console.log('Location ID from query param:', locFromQuery);
+    }
+  }, [location.search]);
+
+  // Step 2: Fallback to users if query param missing
+  useEffect(() => {
+    if (!locationId && users.length > 0) {
       const firstUser = users[0];
-      console.log('First user data:', firstUser); // Debug log
-      
-      // The location_id should now be directly available from the serializer
-      // It comes from location_ghl_id field in the backend
-      const extractedLocationId = firstUser.location_id;
-      
-      console.log('Extracted location ID:', extractedLocationId); // Debug log
-      
+      const extractedLocationId = firstUser.location_id || firstUser.location?.location_id;
       if (extractedLocationId) {
         setLocationId(extractedLocationId);
-      } else {
-        console.warn('No location_id found in user data');
-        // Fallback: try to get from nested location object
-        const fallbackLocationId = firstUser.location?.location_id;
-        if (fallbackLocationId) {
-          setLocationId(fallbackLocationId);
-          console.log('Using fallback location ID:', fallbackLocationId);
-        }
+        console.log('Location ID from first user:', extractedLocationId);
       }
     }
-  }, [users]);
+  }, [users, locationId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
