@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { ArrowLeft } from 'lucide-react';
 import { fetchModels } from '../features/roleplay/roleplaySlice';
 import Button from '../components/Button';
-import axiosInstance from '../api/axiosInstance';
+import axiosInstance from '../utils/axiosInstance';
 
 const RoleplayViewerPage = () => {
   const { categoryId, modelId } = useParams();
@@ -16,6 +16,7 @@ const RoleplayViewerPage = () => {
   const [scoreDetected, setScoreDetected] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [debugInfo, setDebugInfo] = useState('Monitoring for score...');
+  const [checkCount, setCheckCount] = useState(0);
 
   const userEmail = searchParams.get('email');
 
@@ -27,7 +28,7 @@ const RoleplayViewerPage = () => {
 
   // Function to handle the score submission
   const handleScoreSubmission = async (score) => {
-    if (isSubmitting) return; // Prevent multiple submissions
+    if (isSubmitting) return;
     
     console.log('Final score detected:', score);
     setScoreDetected(true);
@@ -35,21 +36,18 @@ const RoleplayViewerPage = () => {
     setDebugInfo('Submitting score to backend...');
     
     try {
-      // Remove percentage sign and convert to number
       const numericScore = parseInt(score.replace('%', ''));
       console.log('Numeric score:', numericScore);
 
-      // Prepare the data
       const submissionData = {
         email: userEmail,
         model_id: parseInt(modelId),
         score: numericScore,
         raw_score: score,
-        first_name: 'Auto', // You can get this from user data if available
-        last_name: 'Detected' // You can get this from user data if available
+        first_name: 'Auto',
+        last_name: 'Detected'
       };
 
-      // Option 1: Submit to scores endpoint (recommended)
       const response = await axiosInstance.post('/roleplay/scores/submit_score/', submissionData);
       
       console.log('Score saved to backend:', response.data);
@@ -58,7 +56,7 @@ const RoleplayViewerPage = () => {
     } catch (error) {
       console.error('Error saving score:', error);
       
-      // Fallback: Try the feedback endpoint if scores endpoint fails
+      // Fallback to feedback endpoint
       try {
         const fallbackData = {
           first_name: 'Auto',
@@ -89,145 +87,204 @@ const RoleplayViewerPage = () => {
 
   const model = models.find((m) => m.id === parseInt(modelId));
 
-  // Function to check for score using try-catch approach
-  const checkForScore = () => {
-    if (!iframeRef.current) {
-      setDebugInfo('Iframe not loaded yet...');
-      return null;
-    }
-    
+  // NEW APPROACH: Use MutationObserver on iframe load to detect when it's ready
+  const setupIframeObserver = () => {
+    if (!iframeRef.current) return;
+
     try {
       const iframe = iframeRef.current;
-      const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document;
       
-      if (!iframeDocument) {
-        setDebugInfo('Cannot access iframe document');
-        return null;
-      }
-
-      // Try multiple selectors since we don't know the exact structure
-      const possibleSelectors = [
-        '.score-section',
-        '.speech-summary-banner',
-        '[class*="score"]',
-        '[class*="result"]',
-        '[class*="summary"]',
-        'strong', // Direct strong tag that might contain score
-        '.summary-header + div', // Element after summary header
-        'p:contains("score")', // Paragraph containing "score"
-        'div:contains("score")' // Div containing "score"
-      ];
-      
-      for (const selector of possibleSelectors) {
+      // Wait for iframe to load completely
+      const checkIframeReady = setInterval(() => {
         try {
-          const element = iframeDocument.querySelector(selector);
-          if (element) {
-            const text = element.textContent || element.innerText || '';
-            console.log(`Checking selector "${selector}":`, text);
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframeDoc && iframeDoc.readyState === 'complete') {
+            clearInterval(checkIframeReady);
+            setDebugInfo('Iframe loaded - attempting score detection');
             
-            // Look for score patterns
-            const scorePatterns = [
-              /Your score was\s*<strong>([^<]+)<\/strong>/,
-              /Your score was\s*([0-9]+%)/,
-              /score.*?([0-9]+%)/i,
-              /([0-9]+%)/, // Just look for percentage pattern
-              /Score:\s*([0-9]+%)/i,
-              /Result:\s*([0-9]+%)/i,
-              /([0-9]{1,3})%/ // Match any percentage
-            ];
-            
-            for (const pattern of scorePatterns) {
-              const match = text.match(pattern);
-              if (match && match[1]) {
-                const foundScore = match[1].trim();
-                setDebugInfo(`Score detected: ${foundScore}`);
-                return foundScore;
-              }
-            }
-            
-            // Also check if the element itself contains a percentage
-            const directMatch = text.match(/([0-9]{1,3})%/);
-            if (directMatch && directMatch[1]) {
-              const foundScore = `${directMatch[1]}%`;
-              setDebugInfo(`Score detected (direct): ${foundScore}`);
-              return foundScore;
-            }
+            // Start the main detection loop
+            startScoreDetection();
           }
-        } catch (e) {
-          // Continue to next selector
-          console.log(`Selector ${selector} failed:`, e.message);
-          continue;
+        } catch (error) {
+          // CORS error - use alternative approach
+          clearInterval(checkIframeReady);
+          setDebugInfo('CORS restricted - using URL monitoring');
+          startURLCheck();
         }
-      }
-      
-      setDebugInfo('No score found in current check');
-      return null;
+      }, 1000);
+
+      // Timeout if iframe never loads properly
+      setTimeout(() => {
+        clearInterval(checkIframeReady);
+        setDebugInfo('Iframe load timeout - using alternative methods');
+        startURLCheck();
+      }, 10000);
+
     } catch (error) {
-      // CORS error - we can't access the iframe content
-      console.log('Cannot access iframe content due to CORS:', error.message);
-      setDebugInfo('CORS restriction - using alternative detection');
-      return null;
+      console.error('Iframe setup error:', error);
+      setDebugInfo('Iframe setup failed - using URL monitoring');
+      startURLCheck();
     }
   };
 
-  // Set up interval to check for score
-  useEffect(() => {
-    if (!model || scoreDetected) return;
-    
-    let checkCount = 0;
-    const maxChecks = 100; // 5 minutes at 3-second intervals
-    
-    const scoreCheckInterval = setInterval(() => {
-      checkCount++;
-      setDebugInfo(`Checking for score... (Attempt ${checkCount})`);
-      
-      const score = checkForScore();
-      if (score && !scoreDetected) {
-        handleScoreSubmission(score);
-        clearInterval(scoreCheckInterval);
-      }
-      
-      // Stop after max checks
-      if (checkCount >= maxChecks) {
-        clearInterval(scoreCheckInterval);
-        setDebugInfo('Score detection ended after maximum attempts');
-        console.log('Score detection ended after maximum attempts');
-      }
-    }, 3000); // Check every 3 seconds
-
-    return () => {
-      clearInterval(scoreCheckInterval);
-    };
-  }, [model, scoreDetected]);
-
-  // Alternative: Listen for iframe URL changes (if the score appears in URL)
-  useEffect(() => {
+  // Alternative: Monitor URL changes for score parameters
+  const startURLCheck = () => {
     if (!iframeRef.current || scoreDetected) return;
 
-    const iframe = iframeRef.current;
-    
-    const checkUrlForScore = () => {
+    const urlCheckInterval = setInterval(() => {
       try {
+        const iframe = iframeRef.current;
         const iframeUrl = iframe.contentWindow?.location?.href;
-        if (iframeUrl && iframeUrl.includes('score=')) {
-          const scoreMatch = iframeUrl.match(/score=([0-9]+)/);
-          if (scoreMatch && scoreMatch[1]) {
-            const score = `${scoreMatch[1]}%`;
-            setDebugInfo(`Score detected from URL: ${score}`);
-            handleScoreSubmission(score);
+        
+        if (iframeUrl) {
+          // Check for common score parameters in URL
+          const scorePatterns = [
+            /score=([0-9]+)/,
+            /result=([0-9]+)/,
+            /percentage=([0-9]+)/,
+            /[?&]([0-9]+)%/,
+            /score%3D([0-9]+)/ // URL encoded
+          ];
+          
+          for (const pattern of scorePatterns) {
+            const match = iframeUrl.match(pattern);
+            if (match && match[1]) {
+              const score = `${match[1]}%`;
+              setDebugInfo(`Score detected from URL: ${score}`);
+              handleScoreSubmission(score);
+              clearInterval(urlCheckInterval);
+              return;
+            }
           }
         }
       } catch (error) {
         // CORS error when accessing iframe URL
       }
-    };
+    }, 2000);
 
-    const urlCheckInterval = setInterval(checkUrlForScore, 5000);
-    
-    return () => {
+    // Stop after 5 minutes
+    setTimeout(() => {
       clearInterval(urlCheckInterval);
-    };
-  }, [scoreDetected]);
+      setDebugInfo('URL monitoring ended');
+    }, 300000);
+
+    return () => clearInterval(urlCheckInterval);
+  };
+
+  // Main score detection function (only works if same-origin)
+  const startScoreDetection = () => {
+    if (!iframeRef.current || scoreDetected) return;
+
+    let detectionCount = 0;
+    const maxDetections = 60; // 3 minutes at 3-second intervals
+
+    const detectionInterval = setInterval(() => {
+      detectionCount++;
+      setCheckCount(detectionCount);
+      setDebugInfo(`Checking for score... (Attempt ${detectionCount})`);
+
+      try {
+        const iframe = iframeRef.current;
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        
+        if (!iframeDoc) {
+          setDebugInfo('Iframe document not accessible');
+          return;
+        }
+
+        // FIXED: Use only valid CSS selectors
+        const validSelectors = [
+          '.score-section',
+          '.speech-summary-banner',
+          '[class*="score"]',
+          '[class*="result"]',
+          '[class*="summary"]',
+          'strong',
+          '.summary-header + div',
+          'p',
+          'div',
+          'span'
+        ];
+
+        // Search through all elements with valid selectors
+        for (const selector of validSelectors) {
+          try {
+            const elements = iframeDoc.querySelectorAll(selector);
+            
+            for (const element of elements) {
+              const text = element.textContent || element.innerText || '';
+              
+              // Check if this element contains score-related text
+              if (text.includes('score') || text.includes('Score') || text.includes('result') || /[0-9]+%/.test(text)) {
+                console.log(`Found potential score element (${selector}):`, text);
+                
+                // Look for percentage patterns in the text
+                const scorePatterns = [
+                  /Your score was\s*<strong>([^<]+)<\/strong>/,
+                  /Your score was\s*([0-9]+%)/,
+                  /score.*?([0-9]+%)/i,
+                  /([0-9]+%)/,
+                  /Score:\s*([0-9]+%)/i,
+                  /Result:\s*([0-9]+%)/i,
+                  /([0-9]{1,3})%/
+                ];
+                
+                for (const pattern of scorePatterns) {
+                  const match = text.match(pattern);
+                  if (match && match[1]) {
+                    const foundScore = match[1].trim();
+                    setDebugInfo(`Score detected: ${foundScore}`);
+                    handleScoreSubmission(foundScore);
+                    clearInterval(detectionInterval);
+                    return;
+                  }
+                }
+                
+                // Also check for any percentage in the text
+                const directMatch = text.match(/([0-9]{1,3})%/);
+                if (directMatch && directMatch[1]) {
+                  const foundScore = `${directMatch[1]}%`;
+                  setDebugInfo(`Score detected (percentage only): ${foundScore}`);
+                  handleScoreSubmission(foundScore);
+                  clearInterval(detectionInterval);
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            // Continue to next selector
+            continue;
+          }
+        }
+        
+        setDebugInfo(`No score found (Attempt ${detectionCount})`);
+        
+        // Stop after max attempts
+        if (detectionCount >= maxDetections) {
+          clearInterval(detectionInterval);
+          setDebugInfo('Score detection ended - no score found');
+          // Fall back to URL monitoring
+          startURLCheck();
+        }
+        
+      } catch (error) {
+        // CORS error - switch to URL monitoring
+        console.log('CORS error in detection:', error);
+        clearInterval(detectionInterval);
+        setDebugInfo('CORS restriction - switching to URL monitoring');
+        startURLCheck();
+      }
+    }, 3000);
+
+    return () => clearInterval(detectionInterval);
+  };
+
+  // Set up iframe observer when model is available
+  useEffect(() => {
+    if (!model || scoreDetected) return;
+
+    setupIframeObserver();
+  }, [model, scoreDetected]);
 
   if (!model) {
     return (
@@ -261,7 +318,7 @@ const RoleplayViewerPage = () => {
               </div>
             ) : (
               <div className="text-blue-600 text-sm font-medium">
-                Monitoring for score...
+                Detection active ({checkCount} checks)
               </div>
             )}
           </div>
@@ -274,10 +331,7 @@ const RoleplayViewerPage = () => {
             style={{ width: '100%', minHeight: '600px', border: 'none' }}
             title="Roleplay Simulation"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => {
-              setDebugInfo('Iframe loaded - starting score detection');
-              console.log('Iframe loaded successfully');
-            }}
+            onLoad={setupIframeObserver}
           />
         </div>
         
@@ -288,7 +342,7 @@ const RoleplayViewerPage = () => {
             <span className={`font-medium ${
               debugInfo.includes('✓') ? 'text-green-600' : 
               debugInfo.includes('✗') ? 'text-red-600' : 
-              'text-gray-600'
+              'text-blue-600'
             }`}>
               {debugInfo}
             </span>
@@ -303,13 +357,16 @@ const RoleplayViewerPage = () => {
               <strong>Model ID:</strong> {modelId}
             </div>
           )}
+          <div className="text-sm text-gray-600 mt-1">
+            <strong>Detection Method:</strong> {debugInfo.includes('URL') ? 'URL Monitoring' : 'DOM Analysis'}
+          </div>
         </div>
 
-        {/* Manual score submission fallback */}
-        {!scoreDetected && (
+        {/* Manual fallback */}
+        {!scoreDetected && checkCount > 10 && (
           <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
             <div className="text-sm text-yellow-800">
-              <strong>Note:</strong> If the score doesn't auto-detect, you can manually submit it through the feedback form.
+              <strong>Note:</strong> If auto-detection fails, please submit your score manually.
             </div>
             <Button
               variant="outline"
@@ -317,7 +374,7 @@ const RoleplayViewerPage = () => {
               className="mt-2"
               onClick={() => navigateWithEmail('/feedback')}
             >
-              Go to Feedback Form
+              Submit Score Manually
             </Button>
           </div>
         )}
