@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { ArrowLeft } from 'lucide-react';
 import { fetchModels } from '../features/roleplay/roleplaySlice';
 import Button from '../components/Button';
-import axiosInstance from '../api/axiosInstance';
+import axiosInstance from '../utils/axiosInstance';
 
 const RoleplayViewerPage = () => {
   const { categoryId, modelId } = useParams();
@@ -80,119 +80,7 @@ const RoleplayViewerPage = () => {
 
   const model = models.find((m) => m.id === parseInt(modelId));
 
-  // Enhanced DOM monitoring for longer duration
-  useEffect(() => {
-    if (!model || scoreDetected) return;
-
-    let attempts = 0;
-    const maxAttempts = 200; // Increased to ~10 minutes (200 * 3 seconds = 600 seconds)
-    let lastUrl = '';
-
-    const interval = setInterval(() => {
-      attempts++;
-      setCheckCount(attempts);
-      
-      const minutes = Math.floor(timeElapsed / 60);
-      const seconds = timeElapsed % 60;
-      setDebugInfo(`Monitoring... ${minutes}m ${seconds}s (Check ${attempts})`);
-
-      try {
-        const iframe = iframeRef.current;
-        if (iframe) {
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-          
-          if (iframeDoc) {
-            // Method 1: Check for specific score elements
-            const scoreElements = [
-              '.score-section',
-              '.speech-summary-banner',
-              '[class*="score"]',
-              '[class*="result"]',
-              '[class*="summary"]'
-            ];
-
-            for (const selector of scoreElements) {
-              try {
-                const element = iframeDoc.querySelector(selector);
-                if (element) {
-                  const text = element.textContent || element.innerText || '';
-                  console.log(`Found element with ${selector}:`, text.substring(0, 100));
-                  
-                  // Look for percentage patterns
-                  const scoreMatch = text.match(/([0-9]{1,3})%/);
-                  if (scoreMatch) {
-                    const score = scoreMatch[0];
-                    setDebugInfo(`🎯 Score detected in ${selector}: ${score}`);
-                    handleScoreSubmission(score, 'auto-dom');
-                    clearInterval(interval);
-                    return;
-                  }
-                }
-              } catch (e) {
-                // Continue to next selector
-              }
-            }
-
-            // Method 2: Check entire body for score patterns (more aggressive)
-            const bodyText = iframeDoc.body?.textContent || '';
-            const scorePatterns = [
-              /Your score was\s*([0-9]+%)/i,
-              /Score:\s*([0-9]+%)/i,
-              /Result:\s*([0-9]+%)/i,
-              /([0-9]{1,3})%/
-            ];
-
-            for (const pattern of scorePatterns) {
-              const match = bodyText.match(pattern);
-              if (match && match[1]) {
-                const score = match[1].trim();
-                setDebugInfo(`🎯 Score pattern matched: ${score}`);
-                handleScoreSubmission(score, 'auto-pattern');
-                clearInterval(interval);
-                return;
-              }
-            }
-
-            // Method 3: Check for URL changes (if the score appears in URL)
-            try {
-              const currentUrl = iframe.contentWindow?.location?.href || '';
-              if (currentUrl !== lastUrl) {
-                lastUrl = currentUrl;
-                console.log('Iframe URL changed:', currentUrl);
-                
-                // Check for score in URL parameters
-                const urlScoreMatch = currentUrl.match(/[?&](?:score|result)=([0-9]+)/);
-                if (urlScoreMatch && urlScoreMatch[1]) {
-                  const score = `${urlScoreMatch[1]}%`;
-                  setDebugInfo(`🎯 Score detected in URL: ${score}`);
-                  handleScoreSubmission(score, 'auto-url');
-                  clearInterval(interval);
-                  return;
-                }
-              }
-            } catch (urlError) {
-              // CORS error when accessing URL - expected
-            }
-          }
-        }
-      } catch (error) {
-        // Expected CORS errors - continue monitoring
-        if (attempts % 10 === 0) { // Log every 10th attempt to avoid spam
-          console.log('DOM access blocked by CORS (expected) - continuing monitoring');
-        }
-      }
-
-      // Stop after max attempts (10 minutes) or if test seems complete
-      if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setDebugInfo('Auto-detection ended after 10 minutes. Use manual input if needed.');
-      }
-    }, 3000); // Check every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [model, scoreDetected, timeElapsed]);
-
-  // Manual score input fallback
+  // Manual score input component
   const ManualScoreInput = () => {
     const [manualScore, setManualScore] = useState('');
     
@@ -231,6 +119,98 @@ const RoleplayViewerPage = () => {
       </div>
     );
   };
+
+  // Enhanced DOM monitoring for longer duration
+  useEffect(() => {
+    if (!model || scoreDetected) return;
+
+    let attempts = 0;
+    const maxAttempts = 200; // ~10 minutes (200 * 3 seconds = 600 seconds)
+
+    const interval = setInterval(() => {
+      attempts++;
+      setCheckCount(attempts);
+      
+      const minutes = Math.floor(timeElapsed / 60);
+      const seconds = timeElapsed % 60;
+      setDebugInfo(`Monitoring... ${minutes}m ${seconds}s (Check ${attempts})`);
+
+      // Try to detect score in iframe
+      const detectScore = () => {
+        try {
+          const iframe = iframeRef.current;
+          if (!iframe) return null;
+
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (!iframeDoc) return null;
+
+          // Check for score elements
+          const scoreSelectors = [
+            '.score-section',
+            '.speech-summary-banner',
+            '[class*="score"]',
+            '[class*="result"]',
+            '[class*="summary"]'
+          ];
+
+          for (const selector of scoreSelectors) {
+            try {
+              const element = iframeDoc.querySelector(selector);
+              if (element) {
+                const text = element.textContent || element.innerText || '';
+                console.log(`Checking ${selector}:`, text.substring(0, 100));
+                
+                // Look for percentage
+                const scoreMatch = text.match(/([0-9]{1,3})%/);
+                if (scoreMatch) {
+                  return scoreMatch[0];
+                }
+              }
+            } catch (e) {
+              // Continue to next selector
+            }
+          }
+
+          // Check body text
+          const bodyText = iframeDoc.body?.textContent || '';
+          const scorePatterns = [
+            /Your score was\s*([0-9]+%)/i,
+            /Score:\s*([0-9]+%)/i,
+            /Result:\s*([0-9]+%)/i,
+            /([0-9]{1,3})%/
+          ];
+
+          for (const pattern of scorePatterns) {
+            const match = bodyText.match(pattern);
+            if (match && match[1]) {
+              return match[1].trim();
+            }
+          }
+
+          return null;
+        } catch (error) {
+          // CORS error - expected
+          return null;
+        }
+      };
+
+      const detectedScore = detectScore();
+      if (detectedScore) {
+        setDebugInfo(`🎯 Score detected: ${detectedScore}`);
+        handleScoreSubmission(detectedScore, 'auto');
+        clearInterval(interval);
+        return;
+      }
+
+      // Stop after max attempts
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        setDebugInfo('Auto-detection ended after 10 minutes. Use manual input if needed.');
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [model, scoreDetected, timeElapsed]);
 
   if (!model) {
     return (
