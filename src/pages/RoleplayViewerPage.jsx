@@ -17,6 +17,7 @@ const RoleplayViewerPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [debugInfo, setDebugInfo] = useState('Starting score detection...');
   const [checkCount, setCheckCount] = useState(0);
+  const [timeElapsed, setTimeElapsed] = useState(0);
 
   const userEmail = searchParams.get('email');
 
@@ -26,8 +27,19 @@ const RoleplayViewerPage = () => {
     }
   }, [dispatch, models.length]);
 
+  // Timer to track how long we've been monitoring
+  useEffect(() => {
+    if (!model || scoreDetected) return;
+
+    const timer = setInterval(() => {
+      setTimeElapsed(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [model, scoreDetected]);
+
   // Function to handle the score submission
-  const handleScoreSubmission = async (score, source = 'manual') => {
+  const handleScoreSubmission = async (score, source = 'auto') => {
     if (isSubmitting) return;
     
     console.log(`Score detected (${source}):`, score);
@@ -38,7 +50,6 @@ const RoleplayViewerPage = () => {
     try {
       const numericScore = parseInt(score.replace('%', ''));
       
-      // Try the scores endpoint first
       const submissionData = {
         email: userEmail,
         model_id: parseInt(modelId),
@@ -69,7 +80,119 @@ const RoleplayViewerPage = () => {
 
   const model = models.find((m) => m.id === parseInt(modelId));
 
-  // SIMPLIFIED: Manual score input for user
+  // Enhanced DOM monitoring for longer duration
+  useEffect(() => {
+    if (!model || scoreDetected) return;
+
+    let attempts = 0;
+    const maxAttempts = 200; // Increased to ~10 minutes (200 * 3 seconds = 600 seconds)
+    let lastUrl = '';
+
+    const interval = setInterval(() => {
+      attempts++;
+      setCheckCount(attempts);
+      
+      const minutes = Math.floor(timeElapsed / 60);
+      const seconds = timeElapsed % 60;
+      setDebugInfo(`Monitoring... ${minutes}m ${seconds}s (Check ${attempts})`);
+
+      try {
+        const iframe = iframeRef.current;
+        if (iframe) {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          
+          if (iframeDoc) {
+            // Method 1: Check for specific score elements
+            const scoreElements = [
+              '.score-section',
+              '.speech-summary-banner',
+              '[class*="score"]',
+              '[class*="result"]',
+              '[class*="summary"]'
+            ];
+
+            for (const selector of scoreElements) {
+              try {
+                const element = iframeDoc.querySelector(selector);
+                if (element) {
+                  const text = element.textContent || element.innerText || '';
+                  console.log(`Found element with ${selector}:`, text.substring(0, 100));
+                  
+                  // Look for percentage patterns
+                  const scoreMatch = text.match(/([0-9]{1,3})%/);
+                  if (scoreMatch) {
+                    const score = scoreMatch[0];
+                    setDebugInfo(`🎯 Score detected in ${selector}: ${score}`);
+                    handleScoreSubmission(score, 'auto-dom');
+                    clearInterval(interval);
+                    return;
+                  }
+                }
+              } catch (e) {
+                // Continue to next selector
+              }
+            }
+
+            // Method 2: Check entire body for score patterns (more aggressive)
+            const bodyText = iframeDoc.body?.textContent || '';
+            const scorePatterns = [
+              /Your score was\s*([0-9]+%)/i,
+              /Score:\s*([0-9]+%)/i,
+              /Result:\s*([0-9]+%)/i,
+              /([0-9]{1,3})%/
+            ];
+
+            for (const pattern of scorePatterns) {
+              const match = bodyText.match(pattern);
+              if (match && match[1]) {
+                const score = match[1].trim();
+                setDebugInfo(`🎯 Score pattern matched: ${score}`);
+                handleScoreSubmission(score, 'auto-pattern');
+                clearInterval(interval);
+                return;
+              }
+            }
+
+            // Method 3: Check for URL changes (if the score appears in URL)
+            try {
+              const currentUrl = iframe.contentWindow?.location?.href || '';
+              if (currentUrl !== lastUrl) {
+                lastUrl = currentUrl;
+                console.log('Iframe URL changed:', currentUrl);
+                
+                // Check for score in URL parameters
+                const urlScoreMatch = currentUrl.match(/[?&](?:score|result)=([0-9]+)/);
+                if (urlScoreMatch && urlScoreMatch[1]) {
+                  const score = `${urlScoreMatch[1]}%`;
+                  setDebugInfo(`🎯 Score detected in URL: ${score}`);
+                  handleScoreSubmission(score, 'auto-url');
+                  clearInterval(interval);
+                  return;
+                }
+              }
+            } catch (urlError) {
+              // CORS error when accessing URL - expected
+            }
+          }
+        }
+      } catch (error) {
+        // Expected CORS errors - continue monitoring
+        if (attempts % 10 === 0) { // Log every 10th attempt to avoid spam
+          console.log('DOM access blocked by CORS (expected) - continuing monitoring');
+        }
+      }
+
+      // Stop after max attempts (10 minutes) or if test seems complete
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        setDebugInfo('Auto-detection ended after 10 minutes. Use manual input if needed.');
+      }
+    }, 3000); // Check every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [model, scoreDetected, timeElapsed]);
+
+  // Manual score input fallback
   const ManualScoreInput = () => {
     const [manualScore, setManualScore] = useState('');
     
@@ -77,7 +200,6 @@ const RoleplayViewerPage = () => {
       if (!manualScore) return;
       
       let scoreValue = manualScore;
-      // Add percentage if not included
       if (!scoreValue.includes('%')) {
         scoreValue = scoreValue + '%';
       }
@@ -88,7 +210,7 @@ const RoleplayViewerPage = () => {
     return (
       <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <div className="text-sm text-blue-800 mb-2">
-          <strong>Auto-detection didn't work?</strong> Enter your score manually:
+          <strong>Manual Score Entry:</strong> If auto-detection doesn't work, enter your score here:
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -109,50 +231,6 @@ const RoleplayViewerPage = () => {
       </div>
     );
   };
-
-  // Basic iframe monitoring (minimal approach)
-  useEffect(() => {
-    if (!model || scoreDetected) return;
-
-    let attempts = 0;
-    const maxAttempts = 20; // Reduced to 1 minute
-
-    const interval = setInterval(() => {
-      attempts++;
-      setCheckCount(attempts);
-      setDebugInfo(`Monitoring iframe... (Attempt ${attempts})`);
-
-      // Try basic DOM access (will fail due to CORS, but we try anyway)
-      try {
-        const iframe = iframeRef.current;
-        if (iframe) {
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-          
-          // This will throw CORS error, but we catch it below
-          if (iframeDoc) {
-            const bodyText = iframeDoc.body?.textContent || '';
-            
-            // Simple pattern matching for scores
-            const scoreMatch = bodyText.match(/([0-9]{1,3})%/);
-            if (scoreMatch) {
-              const score = scoreMatch[0];
-              setDebugInfo(`Found potential score: ${score}`);
-              // Don't auto-submit from DOM due to potential false positives
-            }
-          }
-        }
-      } catch (error) {
-        // Expected CORS error - do nothing
-      }
-
-      if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setDebugInfo('Auto-detection complete. Use manual input if needed.');
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [model, scoreDetected]);
 
   if (!model) {
     return (
@@ -186,7 +264,7 @@ const RoleplayViewerPage = () => {
               </div>
             ) : (
               <div className="text-blue-600 text-sm font-medium">
-                Detection: {checkCount} checks
+                Monitoring: {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s
               </div>
             )}
           </div>
@@ -199,7 +277,7 @@ const RoleplayViewerPage = () => {
             style={{ width: '100%', minHeight: '600px', border: 'none' }}
             title="Roleplay Simulation"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => setDebugInfo('Roleplay loaded - complete the exercise')}
+            onLoad={() => setDebugInfo('Roleplay loaded - complete the exercise to get your score')}
           />
         </div>
         
@@ -208,6 +286,7 @@ const RoleplayViewerPage = () => {
           <div className="text-sm">
             <strong className="text-gray-700">Status: </strong>
             <span className={`font-medium ${
+              debugInfo.includes('🎯') ? 'text-green-600' : 
               debugInfo.includes('✓') ? 'text-green-600' : 
               debugInfo.includes('✗') ? 'text-red-600' : 
               'text-blue-600'
@@ -215,29 +294,28 @@ const RoleplayViewerPage = () => {
               {debugInfo}
             </span>
           </div>
-          {userEmail && (
-            <div className="text-sm text-gray-600 mt-1">
-              <strong>User:</strong> {userEmail}
-            </div>
-          )}
-          <div className="text-sm text-gray-600 mt-1">
-            <strong>Model:</strong> {model.name}
+          <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-gray-600">
+            <div><strong>User:</strong> {userEmail}</div>
+            <div><strong>Model:</strong> {model.name}</div>
+            <div><strong>Checks:</strong> {checkCount}</div>
+            <div><strong>Time:</strong> {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s</div>
           </div>
         </div>
 
-        {/* Manual Score Input - Always show as fallback */}
+        {/* Manual Score Input */}
         <ManualScoreInput />
 
-        {/* Instructions */}
+        {/* Progress and Instructions */}
         <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
           <div className="text-sm text-green-800">
-            <strong>How to record your score:</strong>
-            <ol className="list-decimal list-inside mt-1 space-y-1">
-              <li>Complete the roleplay exercise above</li>
-              <li>Note your final score percentage (e.g., 85%)</li>
-              <li>Enter the score in the manual input above</li>
-              <li>Click "Submit Score" to save it to your record</li>
-            </ol>
+            <strong>Progress & Instructions:</strong>
+            <div className="mt-2 space-y-1">
+              <div>⏱️ <strong>Time Elapsed:</strong> {Math.floor(timeElapsed / 60)} minutes {timeElapsed % 60} seconds</div>
+              <div>🔍 <strong>Detection Checks:</strong> {checkCount} scans performed</div>
+              <div>📊 <strong>Expected Duration:</strong> ~5 minutes for the exercise</div>
+              <div>✅ <strong>What happens:</strong> Complete the exercise → Score appears → Auto-detected</div>
+              <div>🔄 <strong>Monitoring:</strong> Will continue for 10 minutes total</div>
+            </div>
           </div>
         </div>
       </div>
