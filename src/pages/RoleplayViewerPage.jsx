@@ -4,7 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { ArrowLeft } from 'lucide-react';
 import { fetchModels } from '../features/roleplay/roleplaySlice';
 import Button from '../components/Button';
-import axiosInstance from '../utils/axiosInstance';
+import axiosInstance from '../api/axiosInstance';
 
 const RoleplayViewerPage = () => {
   const { categoryId, modelId } = useParams();
