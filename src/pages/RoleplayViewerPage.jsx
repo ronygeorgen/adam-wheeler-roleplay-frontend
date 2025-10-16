@@ -37,7 +37,7 @@ const RoleplayViewerPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // SIMPLIFIED OCR Function - Manual Scan Only
+  // FIXED OCR Function with correct Tesseract.js v4 API
   const handleScanForScore = async () => {
     if (isScanning || !iframeRef.current) {
       setDebugInfo('Already scanning or iframe not ready');
@@ -51,54 +51,80 @@ const RoleplayViewerPage = () => {
     try {
       // Dynamically import libraries only when needed
       const { default: html2canvas } = await import('html2canvas');
-      const { createWorker } = await import('tesseract.js');
+      const Tesseract = await import('tesseract.js');
 
       const iframe = iframeRef.current;
       
       // Capture screenshot of the iframe
       setDebugInfo('📸 Taking screenshot...');
       const canvas = await html2canvas(iframe, {
-        scale: 1.5, // Good balance of quality vs performance
+        scale: 1.5,
         useCORS: true,
         logging: false,
         width: iframe.offsetWidth,
         height: iframe.offsetHeight,
+        backgroundColor: '#ffffff'
       });
 
       setDebugInfo('🔍 Analyzing text with OCR...');
       
-      // Initialize OCR worker
-      const worker = await createWorker('eng');
-      await worker.load();
-      await worker.loadLanguage('eng');
-      await worker.initialize('eng');
+      // FIXED: Use correct Tesseract.js v4 API
+      const { data } = await Tesseract.recognize(
+        canvas, 
+        'eng', 
+        { 
+          logger: m => {
+            if (m.status === 'recognizing text') {
+              setDebugInfo(`🔍 Analyzing: ${Math.round(m.progress * 100)}%`);
+            }
+          }
+        }
+      );
 
-      // Perform OCR on the screenshot
-      const { data } = await worker.recognize(canvas);
       const extractedText = data.text;
       
       console.log('📝 OCR Extracted Text:', extractedText);
-      
-      // Terminate worker to free memory
-      await worker.terminate();
+      setDebugInfo(`📝 Text found: "${extractedText.substring(0, 50)}..."`);
 
-      // Look for score patterns - SIMPLIFIED
-      const scoreMatch = extractedText.match(/Your score was\s*(\d{1,3})%/i);
+      // Look for score patterns
+      const scorePatterns = [
+        /Your score was\s*(\d{1,3})%/i,
+        /score was\s*(\d{1,3})%/i,
+        /Score:\s*(\d{1,3})%/i,
+        /Your Score:\s*(\d{1,3})%/i,
+        /Result:\s*(\d{1,3})%/i
+      ];
+
+      let detectedScore = null;
       
-      if (scoreMatch && scoreMatch[1]) {
-        const score = `${scoreMatch[1]}%`;
-        setDebugInfo(`🎯 SCORE DETECTED: ${score}`);
-        handleScoreSubmission(score, 'ocr');
-      } else {
-        // Fallback: Look for any percentage that might be the score
-        const fallbackMatch = extractedText.match(/(\d{1,3})%/);
-        if (fallbackMatch && fallbackMatch[1]) {
-          const possibleScore = `${fallbackMatch[1]}%`;
-          setDebugInfo(`🤔 Possible score found: ${possibleScore} - Please verify`);
-          // Don't auto-submit fallback matches
-        } else {
-          setDebugInfo('❌ No score found in screenshot. Try again or enter manually.');
+      for (const pattern of scorePatterns) {
+        const match = extractedText.match(pattern);
+        if (match && match[1]) {
+          detectedScore = `${match[1]}%`;
+          break;
         }
+      }
+
+      // Fallback: Look for any percentage near "score" text
+      if (!detectedScore) {
+        const lines = extractedText.split('\n');
+        for (const line of lines) {
+          if (line.toLowerCase().includes('score') && line.match(/(\d{1,3})%/)) {
+            const fallbackMatch = line.match(/(\d{1,3})%/);
+            if (fallbackMatch) {
+              detectedScore = `${fallbackMatch[1]}%`;
+              setDebugInfo(`🤔 Possible score found: ${detectedScore} (needs verification)`);
+              break;
+            }
+          }
+        }
+      }
+
+      if (detectedScore) {
+        setDebugInfo(`🎯 SCORE DETECTED: ${detectedScore}`);
+        handleScoreSubmission(detectedScore, 'ocr');
+      } else {
+        setDebugInfo('❌ No score pattern found. Make sure "Your score was X%" is visible and try again.');
       }
 
     } catch (error) {
@@ -240,20 +266,20 @@ const RoleplayViewerPage = () => {
           </div>
         </div>
 
-        {/* OCR Scan Button - ALWAYS VISIBLE */}
+        {/* OCR Scan Button */}
         <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-purple-800">OCR Score Scanner</h3>
               <p className="text-sm text-purple-600">
-                Click to scan for "Your score was X%" text
+                Click when you see "Your score was X%" 
               </p>
             </div>
             <Button
               onClick={handleScanForScore}
               disabled={isScanning || scoreDetected}
               icon={Camera}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               {isScanning ? 'Scanning...' : 'Scan for Score'}
             </Button>
@@ -273,7 +299,7 @@ const RoleplayViewerPage = () => {
             style={{ width: '100%', minHeight: '600px', border: 'none' }}
             title="Roleplay Simulation"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => setDebugInfo('✅ Roleplay loaded - Click "Scan for Score" when finished')}
+            onLoad={() => setDebugInfo('✅ Roleplay loaded - Complete the exercise then click Scan')}
           />
         </div>
         
@@ -284,7 +310,7 @@ const RoleplayViewerPage = () => {
             <span className={`font-medium ${
               debugInfo.includes('🎯') || debugInfo.includes('✅') ? 'text-green-600' : 
               debugInfo.includes('❌') ? 'text-red-600' : 
-              debugInfo.includes('🔄') || debugInfo.includes('🔍') ? 'text-orange-600' :
+              debugInfo.includes('🔄') || debugInfo.includes('🔍') || debugInfo.includes('📸') ? 'text-orange-600' :
               'text-blue-600'
             }`}>
               {debugInfo}
@@ -304,14 +330,18 @@ const RoleplayViewerPage = () => {
         {/* Instructions */}
         <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
           <div className="text-sm text-green-800">
-            <strong>How to use OCR Scanner:</strong>
-            <ol className="list-decimal list-inside mt-1 space-y-1">
-              <li>Complete the roleplay exercise above</li>
-              <li>Wait for the score to appear as "Your score was X%"</li>
-              <li>Click the <strong>"Scan for Score"</strong> purple button above</li>
-              <li>The system will capture a screenshot and detect your score automatically</li>
-              <li>If OCR fails, use the manual input below</li>
+            <strong>📋 Instructions for OCR Scanning:</strong>
+            <ol className="list-decimal list-inside mt-2 space-y-2">
+              <li><strong>Complete the roleplay exercise</strong> in the frame above</li>
+              <li><strong>Wait for the results screen</strong> with "Your score was X%"</li>
+              <li><strong>Click the purple "Scan for Score" button</strong></li>
+              <li><strong>Wait for scanning</strong> - it will show progress (may take 10-30 seconds)</li>
+              <li>If successful, your score will be automatically recorded</li>
+              <li>If OCR fails, use the manual input above</li>
             </ol>
+            <div className="mt-3 p-2 bg-yellow-50 rounded border border-yellow-200">
+              <strong>💡 Tip:</strong> Make sure the score text is clearly visible on screen before scanning.
+            </div>
           </div>
         </div>
       </div>
