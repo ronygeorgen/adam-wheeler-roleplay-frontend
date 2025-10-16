@@ -15,9 +15,9 @@ const RoleplayViewerPage = () => {
   const iframeRef = useRef(null);
   const [scoreDetected, setScoreDetected] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [debugInfo, setDebugInfo] = useState('Starting score detection...');
-  const [checkCount, setCheckCount] = useState(0);
+  const [debugInfo, setDebugInfo] = useState('Roleplay session started');
   const [timeElapsed, setTimeElapsed] = useState(0);
+  const [showManualInput, setShowManualInput] = useState(false);
 
   const userEmail = searchParams.get('email');
 
@@ -27,22 +27,20 @@ const RoleplayViewerPage = () => {
     }
   }, [dispatch, models.length]);
 
-  // Timer to track how long we've been monitoring
+  // Timer to track session duration
   useEffect(() => {
-    if (!model || scoreDetected) return;
-
     const timer = setInterval(() => {
       setTimeElapsed(prev => prev + 1);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [model, scoreDetected]);
+  }, []);
 
   // Function to handle the score submission
-  const handleScoreSubmission = async (score, source = 'auto') => {
+  const handleScoreSubmission = async (score, source = 'manual') => {
     if (isSubmitting) return;
     
-    console.log(`Score detected (${source}):`, score);
+    console.log(`Score submitted (${source}):`, score);
     setScoreDetected(true);
     setIsSubmitting(true);
     setDebugInfo(`Submitting ${score} to backend...`);
@@ -66,7 +64,7 @@ const RoleplayViewerPage = () => {
       
     } catch (error) {
       console.error('Error saving score:', error);
-      setDebugInfo(`✗ Failed to save ${score}. Please try manually.`);
+      setDebugInfo(`✗ Failed to save ${score}. ${error.response?.data?.error || error.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +96,7 @@ const RoleplayViewerPage = () => {
     return (
       <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <div className="text-sm text-blue-800 mb-2">
-          <strong>Manual Score Entry:</strong> If auto-detection doesn't work, enter your score here:
+          <strong>Enter Your Score:</strong> Please enter the score you received:
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -107,6 +105,11 @@ const RoleplayViewerPage = () => {
             value={manualScore}
             onChange={(e) => setManualScore(e.target.value)}
             className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                submitManualScore();
+              }
+            }}
           />
           <Button
             size="sm"
@@ -116,101 +119,21 @@ const RoleplayViewerPage = () => {
             {isSubmitting ? 'Submitting...' : 'Submit Score'}
           </Button>
         </div>
+        <div className="text-xs text-blue-600 mt-1">
+          This will save your score to your training record.
+        </div>
       </div>
     );
   };
 
-  // Enhanced DOM monitoring for longer duration
+  // Show manual input after 30 seconds automatically
   useEffect(() => {
-    if (!model || scoreDetected) return;
+    const timer = setTimeout(() => {
+      setShowManualInput(true);
+    }, 30000); // Show after 30 seconds
 
-    let attempts = 0;
-    const maxAttempts = 200; // ~10 minutes (200 * 3 seconds = 600 seconds)
-
-    const interval = setInterval(() => {
-      attempts++;
-      setCheckCount(attempts);
-      
-      const minutes = Math.floor(timeElapsed / 60);
-      const seconds = timeElapsed % 60;
-      setDebugInfo(`Monitoring... ${minutes}m ${seconds}s (Check ${attempts})`);
-
-      // Try to detect score in iframe
-      const detectScore = () => {
-        try {
-          const iframe = iframeRef.current;
-          if (!iframe) return null;
-
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-          if (!iframeDoc) return null;
-
-          // Check for score elements
-          const scoreSelectors = [
-            '.score-section',
-            '.speech-summary-banner',
-            '[class*="score"]',
-            '[class*="result"]',
-            '[class*="summary"]'
-          ];
-
-          for (const selector of scoreSelectors) {
-            try {
-              const element = iframeDoc.querySelector(selector);
-              if (element) {
-                const text = element.textContent || element.innerText || '';
-                console.log(`Checking ${selector}:`, text.substring(0, 100));
-                
-                // Look for percentage
-                const scoreMatch = text.match(/([0-9]{1,3})%/);
-                if (scoreMatch) {
-                  return scoreMatch[0];
-                }
-              }
-            } catch (e) {
-              // Continue to next selector
-            }
-          }
-
-          // Check body text
-          const bodyText = iframeDoc.body?.textContent || '';
-          const scorePatterns = [
-            /Your score was\s*([0-9]+%)/i,
-            /Score:\s*([0-9]+%)/i,
-            /Result:\s*([0-9]+%)/i,
-            /([0-9]{1,3})%/
-          ];
-
-          for (const pattern of scorePatterns) {
-            const match = bodyText.match(pattern);
-            if (match && match[1]) {
-              return match[1].trim();
-            }
-          }
-
-          return null;
-        } catch (error) {
-          // CORS error - expected
-          return null;
-        }
-      };
-
-      const detectedScore = detectScore();
-      if (detectedScore) {
-        setDebugInfo(`🎯 Score detected: ${detectedScore}`);
-        handleScoreSubmission(detectedScore, 'auto');
-        clearInterval(interval);
-        return;
-      }
-
-      // Stop after max attempts
-      if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        setDebugInfo('Auto-detection ended after 10 minutes. Use manual input if needed.');
-      }
-    }, 3000); // Check every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [model, scoreDetected, timeElapsed]);
+    return () => clearTimeout(timer);
+  }, []);
 
   if (!model) {
     return (
@@ -244,9 +167,22 @@ const RoleplayViewerPage = () => {
               </div>
             ) : (
               <div className="text-blue-600 text-sm font-medium">
-                Monitoring: {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s
+                Session: {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+          <div className="text-sm text-yellow-800">
+            <strong>Instructions:</strong>
+            <ol className="list-decimal list-inside mt-1 space-y-1">
+              <li>Complete the roleplay exercise below</li>
+              <li>Note your final score percentage when finished</li>
+              <li>Enter your score in the form that appears below</li>
+              <li>Click "Submit Score" to save it to your record</li>
+            </ol>
           </div>
         </div>
 
@@ -257,7 +193,7 @@ const RoleplayViewerPage = () => {
             style={{ width: '100%', minHeight: '600px', border: 'none' }}
             title="Roleplay Simulation"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => setDebugInfo('Roleplay loaded - complete the exercise to get your score')}
+            onLoad={() => setDebugInfo('Roleplay loaded - begin your exercise')}
           />
         </div>
         
@@ -266,7 +202,6 @@ const RoleplayViewerPage = () => {
           <div className="text-sm">
             <strong className="text-gray-700">Status: </strong>
             <span className={`font-medium ${
-              debugInfo.includes('🎯') ? 'text-green-600' : 
               debugInfo.includes('✓') ? 'text-green-600' : 
               debugInfo.includes('✗') ? 'text-red-600' : 
               'text-blue-600'
@@ -277,27 +212,50 @@ const RoleplayViewerPage = () => {
           <div className="grid grid-cols-2 gap-2 mt-2 text-xs text-gray-600">
             <div><strong>User:</strong> {userEmail}</div>
             <div><strong>Model:</strong> {model.name}</div>
-            <div><strong>Checks:</strong> {checkCount}</div>
-            <div><strong>Time:</strong> {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s</div>
+            <div><strong>Session Time:</strong> {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s</div>
+            <div><strong>Status:</strong> {scoreDetected ? 'Completed' : 'In Progress'}</div>
           </div>
         </div>
 
-        {/* Manual Score Input */}
-        <ManualScoreInput />
+        {/* Manual Score Input - Show after delay or when user clicks */}
+        {showManualInput && <ManualScoreInput />}
 
-        {/* Progress and Instructions */}
-        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-          <div className="text-sm text-green-800">
-            <strong>Progress & Instructions:</strong>
-            <div className="mt-2 space-y-1">
-              <div>⏱️ <strong>Time Elapsed:</strong> {Math.floor(timeElapsed / 60)} minutes {timeElapsed % 60} seconds</div>
-              <div>🔍 <strong>Detection Checks:</strong> {checkCount} scans performed</div>
-              <div>📊 <strong>Expected Duration:</strong> ~5 minutes for the exercise</div>
-              <div>✅ <strong>What happens:</strong> Complete the exercise → Score appears → Auto-detected</div>
-              <div>🔄 <strong>Monitoring:</strong> Will continue for 10 minutes total</div>
+        {/* Show manual input trigger if not shown yet */}
+        {!showManualInput && !scoreDetected && (
+          <div className="mt-4 text-center">
+            <Button
+              variant="outline"
+              onClick={() => setShowManualInput(true)}
+            >
+              I've Finished - Enter My Score
+            </Button>
+          </div>
+        )}
+
+        {/* Completion Message */}
+        {scoreDetected && (
+          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <div className="text-sm text-green-800 text-center">
+              <strong>🎉 Exercise Completed!</strong>
+              <div className="mt-1">Your score has been recorded. You can now return to the library or continue with other exercises.</div>
+              <div className="mt-2 flex gap-2 justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigateWithEmail('/user')}
+                >
+                  Back to Library
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => navigateWithEmail('/feedback')}
+                >
+                  Provide Detailed Feedback
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
