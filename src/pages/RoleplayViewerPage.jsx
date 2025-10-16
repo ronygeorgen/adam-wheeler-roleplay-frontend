@@ -15,9 +15,8 @@ const RoleplayViewerPage = () => {
   const iframeRef = useRef(null);
   const [scoreDetected, setScoreDetected] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [debugInfo, setDebugInfo] = useState('Roleplay session started');
+  const [debugInfo, setDebugInfo] = useState('Starting roleplay session...');
   const [timeElapsed, setTimeElapsed] = useState(0);
-  const [showManualInput, setShowManualInput] = useState(false);
 
   const userEmail = searchParams.get('email');
 
@@ -27,7 +26,7 @@ const RoleplayViewerPage = () => {
     }
   }, [dispatch, models.length]);
 
-  // Timer to track session duration
+  // Timer
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeElapsed(prev => prev + 1);
@@ -36,11 +35,74 @@ const RoleplayViewerPage = () => {
     return () => clearInterval(timer);
   }, []);
 
+  // Listen for messages from the iframe
+  useEffect(() => {
+    const handleMessage = (event) => {
+      console.log('Message received from iframe:', event.data);
+      
+      // Check if this message contains score information
+      if (event.data && event.data.type === 'ROLEPLAY_SCORE') {
+        const score = event.data.score;
+        setDebugInfo(`🎯 Score received: ${score}`);
+        handleScoreSubmission(score, 'auto');
+      }
+      
+      // Also check for any message that might contain score data
+      if (event.data && typeof event.data === 'object') {
+        const scoreData = extractScoreFromObject(event.data);
+        if (scoreData) {
+          setDebugInfo(`🎯 Score detected in data: ${scoreData}`);
+          handleScoreSubmission(scoreData, 'auto');
+        }
+      }
+      
+      // Check for plain text that might contain score
+      if (typeof event.data === 'string') {
+        const scoreMatch = event.data.match(/([0-9]{1,3})%/);
+        if (scoreMatch) {
+          setDebugInfo(`🎯 Score found in message: ${scoreMatch[0]}`);
+          handleScoreSubmission(scoreMatch[0], 'auto');
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
+
+  // Function to extract score from various data structures
+  const extractScoreFromObject = (data) => {
+    // Check common score property names
+    const scoreProperties = ['score', 'result', 'percentage', 'finalScore', 'userScore'];
+    
+    for (const prop of scoreProperties) {
+      if (data[prop] !== undefined) {
+        let score = data[prop];
+        if (typeof score === 'number') {
+          return `${score}%`;
+        }
+        if (typeof score === 'string' && score.match(/([0-9]{1,3})%/)) {
+          return score;
+        }
+      }
+    }
+    
+    // Check nested objects
+    if (data.data && typeof data.data === 'object') {
+      return extractScoreFromObject(data.data);
+    }
+    
+    return null;
+  };
+
   // Function to handle the score submission
   const handleScoreSubmission = async (score, source = 'manual') => {
-    if (isSubmitting) return;
+    if (isSubmitting || scoreDetected) return;
     
-    console.log(`Score submitted (${source}):`, score);
+    console.log(`Score detected (${source}):`, score);
     setScoreDetected(true);
     setIsSubmitting(true);
     setDebugInfo(`Submitting ${score} to backend...`);
@@ -96,7 +158,7 @@ const RoleplayViewerPage = () => {
     return (
       <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <div className="text-sm text-blue-800 mb-2">
-          <strong>Enter Your Score:</strong> Please enter the score you received:
+          <strong>Manual Score Entry:</strong> If auto-detection doesn't work, enter your score here:
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -119,21 +181,94 @@ const RoleplayViewerPage = () => {
             {isSubmitting ? 'Submitting...' : 'Submit Score'}
           </Button>
         </div>
-        <div className="text-xs text-blue-600 mt-1">
-          This will save your score to your training record.
-        </div>
       </div>
     );
   };
 
-  // Show manual input after 30 seconds automatically
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowManualInput(true);
-    }, 30000); // Show after 30 seconds
-
-    return () => clearTimeout(timer);
-  }, []);
+  // Try to inject a script into the iframe that can detect the score
+  const injectScoreDetector = () => {
+    if (!iframeRef.current) return;
+    
+    try {
+      const iframe = iframeRef.current;
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      
+      if (iframeDoc) {
+        const script = iframeDoc.createElement('script');
+        script.textContent = `
+          // Score detection script
+          (function() {
+            console.log('Score detector injected into iframe');
+            
+            // Method 1: Monitor for score elements
+            function checkForScore() {
+              const scoreElements = [
+                '.score-section',
+                '.speech-summary-banner',
+                '[class*="score"]',
+                '[class*="result"]'
+              ];
+              
+              for (const selector of scoreElements) {
+                const element = document.querySelector(selector);
+                if (element) {
+                  const text = element.textContent || element.innerText;
+                  const scoreMatch = text.match(/([0-9]{1,3})%/);
+                  if (scoreMatch) {
+                    console.log('Score found via element:', scoreMatch[0]);
+                    window.parent.postMessage({
+                      type: 'ROLEPLAY_SCORE',
+                      score: scoreMatch[0],
+                      source: 'element-detection'
+                    }, '*');
+                    return true;
+                  }
+                }
+              }
+              return false;
+            }
+            
+            // Method 2: MutationObserver to watch for DOM changes
+            const observer = new MutationObserver(function(mutations) {
+              for (const mutation of mutations) {
+                if (mutation.addedNodes.length > 0) {
+                  if (checkForScore()) {
+                    observer.disconnect();
+                    break;
+                  }
+                }
+              }
+            });
+            
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+            
+            // Method 3: Periodic checking as fallback
+            const interval = setInterval(() => {
+              if (checkForScore()) {
+                clearInterval(interval);
+              }
+            }, 2000);
+            
+            // Stop after 5 minutes
+            setTimeout(() => {
+              clearInterval(interval);
+              observer.disconnect();
+            }, 300000);
+            
+          })();
+        `;
+        
+        iframeDoc.head.appendChild(script);
+        setDebugInfo('Score detector injected into iframe');
+      }
+    } catch (error) {
+      console.log('Cannot inject script due to CORS:', error);
+      setDebugInfo('CORS restriction - using message listening only');
+    }
+  };
 
   if (!model) {
     return (
@@ -173,19 +308,6 @@ const RoleplayViewerPage = () => {
           </div>
         </div>
 
-        {/* Instructions */}
-        <div className="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-          <div className="text-sm text-yellow-800">
-            <strong>Instructions:</strong>
-            <ol className="list-decimal list-inside mt-1 space-y-1">
-              <li>Complete the roleplay exercise below</li>
-              <li>Note your final score percentage when finished</li>
-              <li>Enter your score in the form that appears below</li>
-              <li>Click "Submit Score" to save it to your record</li>
-            </ol>
-          </div>
-        </div>
-
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
           <iframe
             ref={iframeRef}
@@ -193,7 +315,10 @@ const RoleplayViewerPage = () => {
             style={{ width: '100%', minHeight: '600px', border: 'none' }}
             title="Roleplay Simulation"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => setDebugInfo('Roleplay loaded - begin your exercise')}
+            onLoad={() => {
+              setDebugInfo('Roleplay loaded - listening for score...');
+              setTimeout(injectScoreDetector, 2000); // Try injection after load
+            }}
           />
         </div>
         
@@ -202,6 +327,7 @@ const RoleplayViewerPage = () => {
           <div className="text-sm">
             <strong className="text-gray-700">Status: </strong>
             <span className={`font-medium ${
+              debugInfo.includes('🎯') ? 'text-green-600' : 
               debugInfo.includes('✓') ? 'text-green-600' : 
               debugInfo.includes('✗') ? 'text-red-600' : 
               'text-blue-600'
@@ -213,46 +339,24 @@ const RoleplayViewerPage = () => {
             <div><strong>User:</strong> {userEmail}</div>
             <div><strong>Model:</strong> {model.name}</div>
             <div><strong>Session Time:</strong> {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s</div>
-            <div><strong>Status:</strong> {scoreDetected ? 'Completed' : 'In Progress'}</div>
+            <div><strong>Detection:</strong> Message Listening</div>
           </div>
         </div>
 
-        {/* Manual Score Input - Show after delay or when user clicks */}
-        {showManualInput && <ManualScoreInput />}
+        {/* Manual Score Input */}
+        <ManualScoreInput />
 
-        {/* Show manual input trigger if not shown yet */}
-        {!showManualInput && !scoreDetected && (
-          <div className="mt-4 text-center">
-            <Button
-              variant="outline"
-              onClick={() => setShowManualInput(true)}
-            >
-              I've Finished - Enter My Score
-            </Button>
-          </div>
-        )}
-
-        {/* Completion Message */}
-        {scoreDetected && (
-          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-            <div className="text-sm text-green-800 text-center">
-              <strong>🎉 Exercise Completed!</strong>
-              <div className="mt-1">Your score has been recorded. You can now return to the library or continue with other exercises.</div>
-              <div className="mt-2 flex gap-2 justify-center">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigateWithEmail('/user')}
-                >
-                  Back to Library
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => navigateWithEmail('/feedback')}
-                >
-                  Provide Detailed Feedback
-                </Button>
-              </div>
+        {/* Instructions */}
+        {!scoreDetected && (
+          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="text-sm text-yellow-800">
+              <strong>How it works:</strong>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Complete the roleplay exercise above</li>
+                <li>When finished, your score will appear as "Your score was X%"</li>
+                <li>We'll automatically detect and record your score</li>
+                <li>If auto-detection fails, use the manual input above</li>
+              </ul>
             </div>
           </div>
         )}
