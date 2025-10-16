@@ -1,10 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Camera, Scan } from 'lucide-react';
 import { fetchModels } from '../features/roleplay/roleplaySlice';
 import Button from '../components/Button';
 import axiosInstance from '../api/axiosInstance';
+
+// Dynamic imports to reduce bundle size
+const loadOCR = async () => {
+  const { createWorker } = await import('tesseract.js');
+  return createWorker('eng');
+};
+
+const loadHtml2Canvas = async () => {
+  return (await import('html2canvas')).default;
+};
 
 const RoleplayViewerPage = () => {
   const { categoryId, modelId } = useParams();
@@ -15,8 +25,11 @@ const RoleplayViewerPage = () => {
   const iframeRef = useRef(null);
   const [scoreDetected, setScoreDetected] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [debugInfo, setDebugInfo] = useState('Starting roleplay session...');
   const [timeElapsed, setTimeElapsed] = useState(0);
+  const [screenshotData, setScreenshotData] = useState(null);
+  const [ocrWorker, setOcrWorker] = useState(null);
 
   const userEmail = searchParams.get('email');
 
@@ -25,6 +38,32 @@ const RoleplayViewerPage = () => {
       dispatch(fetchModels());
     }
   }, [dispatch, models.length]);
+
+  // Initialize OCR worker
+  useEffect(() => {
+    const initializeOCR = async () => {
+      try {
+        setDebugInfo('Initializing OCR engine...');
+        const worker = await loadOCR();
+        await worker.load();
+        await worker.loadLanguage('eng');
+        await worker.initialize('eng');
+        setOcrWorker(worker);
+        setDebugInfo('OCR engine ready');
+      } catch (error) {
+        console.error('OCR initialization failed:', error);
+        setDebugInfo('OCR unavailable - manual input only');
+      }
+    };
+
+    initializeOCR();
+
+    return () => {
+      if (ocrWorker) {
+        ocrWorker.terminate();
+      }
+    };
+  }, []);
 
   // Timer
   useEffect(() => {
@@ -35,68 +74,142 @@ const RoleplayViewerPage = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Listen for messages from the iframe
-  useEffect(() => {
-    const handleMessage = (event) => {
-      console.log('Message received from iframe:', event.data);
-      
-      // Check if this message contains score information
-      if (event.data && event.data.type === 'ROLEPLAY_SCORE') {
-        const score = event.data.score;
-        setDebugInfo(`🎯 Score received: ${score}`);
-        handleScoreSubmission(score, 'auto');
-      }
-      
-      // Also check for any message that might contain score data
-      if (event.data && typeof event.data === 'object') {
-        const scoreData = extractScoreFromObject(event.data);
-        if (scoreData) {
-          setDebugInfo(`🎯 Score detected in data: ${scoreData}`);
-          handleScoreSubmission(scoreData, 'auto');
-        }
-      }
-      
-      // Check for plain text that might contain score
-      if (typeof event.data === 'string') {
-        const scoreMatch = event.data.match(/([0-9]{1,3})%/);
-        if (scoreMatch) {
-          setDebugInfo(`🎯 Score found in message: ${scoreMatch[0]}`);
-          handleScoreSubmission(scoreMatch[0], 'auto');
-        }
-      }
-    };
+  // Function to capture iframe screenshot
+  const captureScreenshot = async () => {
+    if (!iframeRef.current || !ocrWorker) {
+      setDebugInfo('OCR not ready or iframe not loaded');
+      return null;
+    }
 
-    window.addEventListener('message', handleMessage);
-    
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []);
+    setIsScanning(true);
+    setDebugInfo('Capturing screenshot...');
 
-  // Function to extract score from various data structures
-  const extractScoreFromObject = (data) => {
-    // Check common score property names
-    const scoreProperties = ['score', 'result', 'percentage', 'finalScore', 'userScore'];
-    
-    for (const prop of scoreProperties) {
-      if (data[prop] !== undefined) {
-        let score = data[prop];
-        if (typeof score === 'number') {
-          return `${score}%`;
-        }
-        if (typeof score === 'string' && score.match(/([0-9]{1,3})%/)) {
+    try {
+      const html2canvas = await loadHtml2Canvas();
+      const iframe = iframeRef.current;
+
+      // Wait for iframe to be fully rendered
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const canvas = await html2canvas(iframe, {
+        scale: 2, // Higher resolution for better OCR
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        logging: false,
+        width: iframe.offsetWidth,
+        height: iframe.offsetHeight,
+      });
+
+      setScreenshotData(canvas.toDataURL());
+      setDebugInfo('Screenshot captured - analyzing text...');
+      
+      return canvas;
+    } catch (error) {
+      console.error('Screenshot capture failed:', error);
+      setDebugInfo('Screenshot failed - ' + error.message);
+      setIsScanning(false);
+      return null;
+    }
+  };
+
+  // Function to perform OCR on screenshot
+  const performOCR = async (canvas) => {
+    if (!ocrWorker) {
+      setDebugInfo('OCR engine not available');
+      return null;
+    }
+
+    try {
+      setDebugInfo('Running OCR analysis...');
+      
+      const { data } = await ocrWorker.recognize(canvas);
+      const extractedText = data.text;
+      
+      console.log('OCR Extracted Text:', extractedText);
+      setDebugInfo(`OCR found: ${extractedText.substring(0, 100)}...`);
+
+      // Look for score patterns in OCR text
+      const scorePatterns = [
+        /Your score was\s*([0-9]{1,3})%/i,
+        /score was\s*([0-9]{1,3})%/i,
+        /Score:\s*([0-9]{1,3})%/i,
+        /Result:\s*([0-9]{1,3})%/i,
+        /([0-9]{1,3})%/
+      ];
+
+      for (const pattern of scorePatterns) {
+        const match = extractedText.match(pattern);
+        if (match) {
+          let score = match[1] ? match[1] : match[0].replace('%', '');
+          score = `${score}%`;
+          setDebugInfo(`🎯 OCR detected score: ${score}`);
           return score;
         }
       }
+
+      setDebugInfo('No score pattern found in OCR text');
+      return null;
+    } catch (error) {
+      console.error('OCR analysis failed:', error);
+      setDebugInfo('OCR analysis failed - ' + error.message);
+      return null;
+    } finally {
+      setIsScanning(false);
     }
-    
-    // Check nested objects
-    if (data.data && typeof data.data === 'object') {
-      return extractScoreFromObject(data.data);
-    }
-    
-    return null;
   };
+
+  // Automated scanning process
+  const startAutoScan = async () => {
+    if (isScanning || scoreDetected) return;
+
+    setIsScanning(true);
+    setDebugInfo('Starting automated score detection...');
+
+    const canvas = await captureScreenshot();
+    if (!canvas) {
+      setIsScanning(false);
+      return;
+    }
+
+    const detectedScore = await performOCR(canvas);
+    if (detectedScore) {
+      handleScoreSubmission(detectedScore, 'ocr-auto');
+    } else {
+      setDebugInfo('No score detected in this scan');
+      setIsScanning(false);
+    }
+  };
+
+  // Manual scan trigger
+  const handleManualScan = async () => {
+    await startAutoScan();
+  };
+
+  // Automated periodic scanning
+  useEffect(() => {
+    if (!ocrWorker || scoreDetected || isScanning) return;
+
+    let scanCount = 0;
+    const maxScans = 40; // Scan for ~10 minutes (40 * 15 seconds)
+
+    const scanInterval = setInterval(async () => {
+      if (scoreDetected || scanCount >= maxScans) {
+        clearInterval(scanInterval);
+        return;
+      }
+
+      scanCount++;
+      setDebugInfo(`Auto-scan ${scanCount}/${maxScans}...`);
+      
+      await startAutoScan();
+      
+      // Wait a bit before next scan
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }, 15000); // Scan every 15 seconds
+
+    return () => clearInterval(scanInterval);
+  }, [ocrWorker, scoreDetected, isScanning]);
 
   // Function to handle the score submission
   const handleScoreSubmission = async (score, source = 'manual') => {
@@ -116,19 +229,22 @@ const RoleplayViewerPage = () => {
         score: numericScore,
         raw_score: score,
         first_name: 'User',
-        last_name: 'Roleplay'
+        last_name: 'Roleplay',
+        detection_method: source
       };
 
       const response = await axiosInstance.post('/roleplay/scores/submit_score/', submissionData);
       
       console.log('Score saved to backend:', response.data);
-      setDebugInfo(`✓ ${score} successfully recorded!`);
+      setDebugInfo(`✓ ${score} successfully recorded via ${source}!`);
       
     } catch (error) {
       console.error('Error saving score:', error);
       setDebugInfo(`✗ Failed to save ${score}. ${error.response?.data?.error || error.message}`);
+      setScoreDetected(false); // Allow retry
     } finally {
       setIsSubmitting(false);
+      setIsScanning(false);
     }
   };
 
@@ -158,7 +274,7 @@ const RoleplayViewerPage = () => {
     return (
       <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
         <div className="text-sm text-blue-800 mb-2">
-          <strong>Manual Score Entry:</strong> If auto-detection doesn't work, enter your score here:
+          <strong>Manual Score Entry:</strong> If OCR detection doesn't work:
         </div>
         <div className="flex gap-2 items-center">
           <input
@@ -167,11 +283,6 @@ const RoleplayViewerPage = () => {
             value={manualScore}
             onChange={(e) => setManualScore(e.target.value)}
             className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm"
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                submitManualScore();
-              }
-            }}
           />
           <Button
             size="sm"
@@ -183,91 +294,6 @@ const RoleplayViewerPage = () => {
         </div>
       </div>
     );
-  };
-
-  // Try to inject a script into the iframe that can detect the score
-  const injectScoreDetector = () => {
-    if (!iframeRef.current) return;
-    
-    try {
-      const iframe = iframeRef.current;
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      
-      if (iframeDoc) {
-        const script = iframeDoc.createElement('script');
-        script.textContent = `
-          // Score detection script
-          (function() {
-            console.log('Score detector injected into iframe');
-            
-            // Method 1: Monitor for score elements
-            function checkForScore() {
-              const scoreElements = [
-                '.score-section',
-                '.speech-summary-banner',
-                '[class*="score"]',
-                '[class*="result"]'
-              ];
-              
-              for (const selector of scoreElements) {
-                const element = document.querySelector(selector);
-                if (element) {
-                  const text = element.textContent || element.innerText;
-                  const scoreMatch = text.match(/([0-9]{1,3})%/);
-                  if (scoreMatch) {
-                    console.log('Score found via element:', scoreMatch[0]);
-                    window.parent.postMessage({
-                      type: 'ROLEPLAY_SCORE',
-                      score: scoreMatch[0],
-                      source: 'element-detection'
-                    }, '*');
-                    return true;
-                  }
-                }
-              }
-              return false;
-            }
-            
-            // Method 2: MutationObserver to watch for DOM changes
-            const observer = new MutationObserver(function(mutations) {
-              for (const mutation of mutations) {
-                if (mutation.addedNodes.length > 0) {
-                  if (checkForScore()) {
-                    observer.disconnect();
-                    break;
-                  }
-                }
-              }
-            });
-            
-            observer.observe(document.body, {
-              childList: true,
-              subtree: true
-            });
-            
-            // Method 3: Periodic checking as fallback
-            const interval = setInterval(() => {
-              if (checkForScore()) {
-                clearInterval(interval);
-              }
-            }, 2000);
-            
-            // Stop after 5 minutes
-            setTimeout(() => {
-              clearInterval(interval);
-              observer.disconnect();
-            }, 300000);
-            
-          })();
-        `;
-        
-        iframeDoc.head.appendChild(script);
-        setDebugInfo('Score detector injected into iframe');
-      }
-    } catch (error) {
-      console.log('Cannot inject script due to CORS:', error);
-      setDebugInfo('CORS restriction - using message listening only');
-    }
   };
 
   if (!model) {
@@ -300,11 +326,35 @@ const RoleplayViewerPage = () => {
               <div className="text-green-600 text-sm font-medium">
                 {isSubmitting ? 'Submitting...' : '✓ Score Recorded'}
               </div>
+            ) : isScanning ? (
+              <div className="text-orange-600 text-sm font-medium">
+                <Scan className="w-4 h-4 inline mr-1 animate-pulse" />
+                Scanning...
+              </div>
             ) : (
               <div className="text-blue-600 text-sm font-medium">
                 Session: {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s
               </div>
             )}
+          </div>
+        </div>
+
+        {/* OCR Controls */}
+        <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-purple-800">OCR Score Detection</h3>
+              <p className="text-sm text-purple-600">
+                Automatically scans for scores using optical character recognition
+              </p>
+            </div>
+            <Button
+              onClick={handleManualScan}
+              disabled={isScanning || !ocrWorker}
+              icon={Camera}
+            >
+              {isScanning ? 'Scanning...' : 'Scan for Score'}
+            </Button>
           </div>
         </div>
 
@@ -315,10 +365,7 @@ const RoleplayViewerPage = () => {
             style={{ width: '100%', minHeight: '600px', border: 'none' }}
             title="Roleplay Simulation"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-            onLoad={() => {
-              setDebugInfo('Roleplay loaded - listening for score...');
-              setTimeout(injectScoreDetector, 2000); // Try injection after load
-            }}
+            onLoad={() => setDebugInfo('Roleplay loaded - OCR detection active')}
           />
         </div>
         
@@ -330,6 +377,7 @@ const RoleplayViewerPage = () => {
               debugInfo.includes('🎯') ? 'text-green-600' : 
               debugInfo.includes('✓') ? 'text-green-600' : 
               debugInfo.includes('✗') ? 'text-red-600' : 
+              debugInfo.includes('OCR') ? 'text-purple-600' :
               'text-blue-600'
             }`}>
               {debugInfo}
@@ -339,23 +387,35 @@ const RoleplayViewerPage = () => {
             <div><strong>User:</strong> {userEmail}</div>
             <div><strong>Model:</strong> {model.name}</div>
             <div><strong>Session Time:</strong> {Math.floor(timeElapsed / 60)}m {timeElapsed % 60}s</div>
-            <div><strong>Detection:</strong> Message Listening</div>
+            <div><strong>OCR:</strong> {ocrWorker ? 'Ready' : 'Loading...'}</div>
           </div>
         </div>
+
+        {/* Screenshot Preview */}
+        {screenshotData && (
+          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <h4 className="font-semibold text-yellow-800 mb-2">Last Screenshot Capture</h4>
+            <img 
+              src={screenshotData} 
+              alt="OCR screenshot" 
+              className="max-w-full h-auto border rounded"
+            />
+          </div>
+        )}
 
         {/* Manual Score Input */}
         <ManualScoreInput />
 
         {/* Instructions */}
         {!scoreDetected && (
-          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-            <div className="text-sm text-yellow-800">
-              <strong>How it works:</strong>
+          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+            <div className="text-sm text-green-800">
+              <strong>How OCR Detection Works:</strong>
               <ul className="list-disc list-inside mt-1 space-y-1">
                 <li>Complete the roleplay exercise above</li>
-                <li>When finished, your score will appear as "Your score was X%"</li>
-                <li>We'll automatically detect and record your score</li>
-                <li>If auto-detection fails, use the manual input above</li>
+                <li>OCR automatically scans every 15 seconds for "Your score was X%"</li>
+                <li>You can also manually trigger a scan with the button above</li>
+                <li>If OCR fails, use the manual input below</li>
               </ul>
             </div>
           </div>
