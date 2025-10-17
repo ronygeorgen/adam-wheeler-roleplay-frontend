@@ -184,7 +184,7 @@ const RoleplayViewerPage = () => {
                   What was your score? <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   name="score"
                   placeholder="Enter your score (0-100)"
                   required
