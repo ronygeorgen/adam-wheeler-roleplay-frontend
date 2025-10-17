@@ -83,160 +83,233 @@ const UserPage = () => {
   };
 
   // Dashboard Components
-  const PerformanceDashboard = () => {
-    if (performanceLoading || !userPerformance) {
-      return (
-        <div className="animate-pulse">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-gray-200 rounded-2xl h-32"></div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    const { overall_stats, category_stats, recent_activities } = userPerformance;
-
+// Dashboard Components
+const PerformanceDashboard = () => {
+  if (performanceLoading || !userPerformance) {
     return (
-      <div className="space-y-8">
-        {/* Overall Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Average Score</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {Math.round(overall_stats.average_score)}%
-                </p>
-              </div>
-              <div className="p-3 bg-blue-50 rounded-xl">
-                <TrendingUp className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </div>
+      <div className="animate-pulse">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-gray-200 rounded-2xl h-32"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Highest Score</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {overall_stats.highest_score}%
-                </p>
-              </div>
-              <div className="p-3 bg-green-50 rounded-xl">
-                <Trophy className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
+  const { overall_stats, category_stats, recent_activities, debug_info } = userPerformance;
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Attempts</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {overall_stats.total_scores}
-                </p>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-xl">
-                <Target className="w-6 h-6 text-purple-600" />
-              </div>
+  return (
+    <div className="space-y-8">
+      {/* Overall Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Average Score</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">
+                {overall_stats.average_score ? Math.round(overall_stats.average_score) : 0}%
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Across {overall_stats.total_scores} attempt{overall_stats.total_scores !== 1 ? 's' : ''}
+              </p>
             </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Feedbacks</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {overall_stats.total_feedbacks}
-                </p>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-xl">
-                <Star className="w-6 h-6 text-orange-600" />
-              </div>
+            <div className="p-3 bg-blue-50 rounded-xl">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
             </div>
           </div>
         </div>
 
-        {/* Category Performance */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Category Stats */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Award className="w-5 h-5 mr-2 text-[#6EBE3A]" />
-              Performance by Category
-            </h3>
-            <div className="space-y-4">
-              {category_stats.map((category) => (
-                <div key={category.category_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{category.category_name}</p>
-                    <p className="text-sm text-gray-600">
-                      {category.attempts_count} attempt{category.attempts_count !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">
-                      {Math.round(category.average_score)}%
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      High: {category.highest_score}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {category_stats.length === 0 && (
-                <p className="text-gray-500 text-center py-4">No performance data yet</p>
-              )}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Highest Score</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">
+                {overall_stats.highest_score ? `${overall_stats.highest_score}%` : 'N/A'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Personal best
+              </p>
+            </div>
+            <div className="p-3 bg-green-50 rounded-xl">
+              <Trophy className="w-6 h-6 text-green-600" />
             </div>
           </div>
+        </div>
 
-          {/* Recent Activity */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <Activity className="w-5 h-5 mr-2 text-[#6EBE3A]" />
-              Recent Activity
-            </h3>
-            <div className="space-y-3">
-              {recent_activities.map((activity, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`p-2 rounded-full ${
-                      activity.type === 'score' ? 'bg-blue-100' : 'bg-green-100'
-                    }`}>
-                      {activity.type === 'score' ? (
-                        <Target className="w-4 h-4 text-blue-600" />
-                      ) : (
-                        <Star className="w-4 h-4 text-green-600" />
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {activity.type === 'score' ? activity.model_name : 'Feedback Submitted'}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {activity.type === 'score' ? activity.category_name : 'Performance Review'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">{activity.score}%</p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(activity.timestamp).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              {recent_activities.length === 0 && (
-                <p className="text-gray-500 text-center py-4">No recent activity</p>
-              )}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Categories Attempted</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">
+                {category_stats.filter(cat => cat.attempts_count > 0).length}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                of {category_stats.length} total
+              </p>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-xl">
+              <Target className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Feedbacks</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">
+                {overall_stats.total_feedbacks}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Performance reviews
+              </p>
+            </div>
+            <div className="p-3 bg-orange-50 rounded-xl">
+              <Star className="w-6 h-6 text-orange-600" />
             </div>
           </div>
         </div>
       </div>
-    );
-  };
+
+      {/* Category Performance */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Category Stats */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Award className="w-5 h-5 mr-2 text-[#6EBE3A]" />
+            Performance by Category
+            <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+              {category_stats.length} categories
+            </span>
+          </h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {category_stats.map((category) => (
+              <div 
+                key={category.category_id} 
+                className={`flex items-center justify-between p-4 rounded-lg border ${
+                  category.attempts_count > 0 
+                    ? 'bg-green-50 border-green-200' 
+                    : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900">{category.category_name}</p>
+                    {category.attempts_count > 0 ? (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                        {category.models_attempted || 0}/{category.models_count || 0} models
+                      </span>
+                    ) : (
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        Not started
+                      </span>
+                    )}
+                  </div>
+                  
+                  {category.attempts_count > 0 ? (
+                    <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
+                      <div>
+                        <p className="text-gray-600">Attempts</p>
+                        <p className="font-semibold text-gray-900">{category.attempts_count}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Average</p>
+                        <p className="font-semibold text-gray-900">
+                          {Math.round(category.average_score)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-600">Highest</p>
+                        <p className="font-semibold text-gray-900">
+                          {category.highest_score}%
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 mt-1">
+                      {category.models_count || 0} model{category.models_count !== 1 ? 's' : ''} available
+                    </p>
+                  )}
+                  
+                  {category.last_attempt && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Last attempt: {new Date(category.last_attempt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {category_stats.length === 0 && (
+              <p className="text-gray-500 text-center py-8">No categories assigned</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Activity className="w-5 h-5 mr-2 text-[#6EBE3A]" />
+            Recent Activity
+            <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+              Last 10 activities
+            </span>
+          </h3>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {recent_activities.map((activity, index) => (
+              <div 
+                key={index} 
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+              >
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className={`p-2 rounded-full ${
+                    activity.type === 'score' ? 'bg-blue-100' : 'bg-green-100'
+                  }`}>
+                    {activity.type === 'score' ? (
+                      <Target className="w-4 h-4 text-blue-600" />
+                    ) : (
+                      <Star className="w-4 h-4 text-green-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">
+                      {activity.type === 'score' ? activity.model_name : 'Feedback Submitted'}
+                    </p>
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <span>{activity.category_name}</span>
+                      <span>•</span>
+                      <span>{new Date(activity.timestamp).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-900 text-lg">{activity.score}%</p>
+                  {activity.raw_score && activity.raw_score !== `${activity.score}%` && (
+                    <p className="text-xs text-gray-500">({activity.raw_score})</p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {recent_activities.length === 0 && (
+              <p className="text-gray-500 text-center py-8">No recent activity</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Debug Info - Remove in production */}
+      {debug_info && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h4 className="font-semibold text-yellow-800 mb-2">Debug Info</h4>
+          <pre className="text-xs text-yellow-700">
+            {JSON.stringify(debug_info, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+};
 
   if (loading) {
     return (
