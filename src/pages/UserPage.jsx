@@ -355,9 +355,9 @@ const PerformanceDashboard = () => {
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
             <p className="text-2xl font-bold text-gray-900">
-              {selectedModel.latest_score}%
+              {selectedCategory.lowest_score}%
             </p>
-            <p className="text-sm text-gray-600">Latest Score</p>
+            <p className="text-sm text-gray-600">Lowest Score</p>
           </div>
         </div>
 
