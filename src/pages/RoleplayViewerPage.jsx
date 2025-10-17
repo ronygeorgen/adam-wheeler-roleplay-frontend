@@ -71,9 +71,12 @@ const RoleplayViewerPage = () => {
 
     try {
       const submissionData = {
-        ...formData,
-        score: parseInt(formData.score), // Convert to number for backend
-        model: parseInt(modelId) // Add the missing model ID
+        // Only send the necessary fields
+        email: formData.email,
+        score: parseInt(formData.score),
+        strengths: formData.strengths,
+        improvements: formData.improvements,
+        model: parseInt(modelId)
       };
 
       const response = await axiosInstance.post('/roleplay/feedback/', submissionData);
@@ -139,9 +142,9 @@ const RoleplayViewerPage = () => {
         </div>
 
         {/* Main Content - Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Side - Iframe */}
-          <div className="space-y-4">
+          <div className="space-y-4 lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div
                 className="w-full"
@@ -172,55 +175,8 @@ const RoleplayViewerPage = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* First Name & Last Name - Side by Side */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    name="first_name"
-                    placeholder="First Name"
-                    value={formData.first_name}
-                    onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    name="last_name"
-                    placeholder="Last Name"
-                    value={formData.last_name}
-                    onChange={handleInputChange}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                  />
-                </div>
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  placeholder="Enter your email"
-                  required
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-green-400"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  *Must be the email you used for training on-boarding
-                </p>
-              </div>
+              {/* Email is preserved from URL and submitted, but hidden from the user */}
+              <input type="hidden" name="email" value={formData.email} />
 
               {/* Score */}
               <div>
