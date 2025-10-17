@@ -82,11 +82,11 @@ const UserPage = () => {
     setSelectedCategory(null);
   };
 
-  // Dashboard Components
 // Dashboard Components
 const PerformanceDashboard = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [viewMode, setViewMode] = useState('overview'); // 'overview' or 'category'
+  const [selectedModel, setSelectedModel] = useState(null); // Add state for selected model
 
   if (performanceLoading || !userPerformance) {
     return (
@@ -310,9 +310,142 @@ const PerformanceDashboard = () => {
     </div>
   );
 
+  // Model Detail View
+  const ModelDetailView = () => {
+    if (!selectedModel || !selectedCategory) return null;
+
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setSelectedModel(null)}
+                className="text-[#6EBE3A] hover:text-[#4C9441] font-medium flex items-center space-x-2"
+              >
+                <ChevronRight className="w-4 h-4 rotate-180" />
+                <span>Back to {selectedCategory.category_name}</span>
+              </button>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedModel.model_name}</h2>
+                <p className="text-gray-600">
+                  {selectedCategory.category_name} • {selectedModel.attempts_count} attempt{selectedModel.attempts_count !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-bold text-gray-900">
+                {selectedModel.latest_score}%
+              </p>
+              <p className="text-sm text-gray-600">Latest Score</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Model Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
+            <p className="text-2xl font-bold text-gray-900">{selectedModel.attempts_count}</p>
+            <p className="text-sm text-gray-600">Total Attempts</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
+            <p className="text-2xl font-bold text-gray-900">{selectedModel.highest_score}%</p>
+            <p className="text-sm text-gray-600">Highest Score</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 text-center">
+            <p className="text-2xl font-bold text-gray-900">
+              {selectedModel.latest_score}%
+            </p>
+            <p className="text-sm text-gray-600">Latest Score</p>
+          </div>
+        </div>
+
+        {/* Attempt History */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+            <Activity className="w-5 h-5 mr-2 text-[#6EBE3A]" />
+            Attempt History
+          </h3>
+          <div className="space-y-6">
+            {selectedModel.models_attempt_history && selectedModel.models_attempt_history.length > 0 ? (
+              selectedModel.models_attempt_history.map((attempt, index) => (
+                <div
+                  key={index}
+                  className="border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="flex items-center space-x-3 mb-2">
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          attempt.score >= 80 ? 'bg-green-100 text-green-800' :
+                          attempt.score >= 60 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          Score: {attempt.score}%
+                        </div>
+                        <span className="text-sm text-gray-500">
+                          {new Date(attempt.submitted_at).toLocaleDateString()} at{' '}
+                          {new Date(attempt.submitted_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600">Attempt #{selectedModel.models_attempt_history.length - index}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                        <Star className="w-4 h-4 mr-2 text-green-600" />
+                        Strengths
+                      </h4>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{attempt.strengths}</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                        <Target className="w-4 h-4 mr-2 text-blue-600" />
+                        Areas for Improvement
+                      </h4>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{attempt.improvements}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Activity className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>No attempt history available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Button */}
+        <div className="text-center">
+          <button
+            onClick={() => handleModelClick(selectedCategory.category_id, selectedModel.model_id)}
+            className="bg-[#6EBE3A] hover:bg-[#4C9441] text-white px-8 py-3 rounded-lg font-medium transition-colors inline-flex items-center"
+          >
+            <Clapperboard className="w-5 h-5 mr-2" />
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // Single Category Detail View
   const CategoryDetailView = () => {
     if (!selectedCategory) return null;
+
+    if (selectedModel) {
+      return <ModelDetailView />;
+    }
 
     return (
       <div className="space-y-6">
@@ -372,41 +505,57 @@ const PerformanceDashboard = () => {
             {selectedCategory.models.map((model) => (
               <div
                 key={model.model_id}
-                className={`flex items-center justify-between p-4 rounded-lg border ${
+                className={`flex items-center justify-between p-6 rounded-xl border transition-all ${
                   model.attempts_count > 0
-                    ? 'bg-green-50 border-green-200'
+                    ? 'bg-green-50 border-green-200 hover:bg-green-100 cursor-pointer'
                     : 'bg-gray-50 border-gray-200'
                 }`}
+                onClick={() => model.attempts_count > 0 && setSelectedModel(model)}
               >
                 <div className="flex-1">
-                  <p className="font-semibold text-gray-900">{model.model_name}</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="font-semibold text-gray-900 text-lg">{model.model_name}</p>
+                    {model.attempts_count > 0 && (
+                      <span className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">
+                        {model.attempts_count} attempt{model.attempts_count !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  
                   {model.attempts_count > 0 ? (
-                    <div className="grid grid-cols-3 gap-4 mt-2 text-sm">
-                      <div>
-                        <p className="text-gray-600">Attempts</p>
-                        <p className="font-semibold text-gray-900">{model.attempts_count}</p>
-                      </div>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-gray-600">Latest Score</p>
-                        <p className="font-semibold text-gray-900">{model.latest_score}%</p>
+                        <p className="font-semibold text-gray-900 text-lg">{model.latest_score}%</p>
                       </div>
                       <div>
                         <p className="text-gray-600">Highest</p>
                         <p className="font-semibold text-gray-900">{model.highest_score}%</p>
                       </div>
+                      <div>
+                        <p className="text-gray-600">Last Attempt</p>
+                        <p className="font-semibold text-gray-900">
+                          {new Date(model.last_attempt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 mt-1">Not attempted yet</p>
+                    <p className="text-sm text-gray-500">Not attempted yet</p>
                   )}
-                  {model.last_attempt && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Last attempt: {new Date(model.last_attempt).toLocaleDateString()}
+                  
+                  {model.attempts_count > 0 && (
+                    <p className="text-xs text-[#6EBE3A] font-medium mt-3 flex items-center">
+                      Click to view detailed feedback history
+                      <ChevronRight className="w-4 h-4 ml-1" />
                     </p>
                   )}
                 </div>
                 <button
-                  onClick={() => handleModelClick(selectedCategory.category_id, model.model_id)}
-                  className="bg-[#6EBE3A] hover:bg-[#4C9441] text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleModelClick(selectedCategory.category_id, model.model_id);
+                  }}
+                  className="bg-[#6EBE3A] hover:bg-[#4C9441] text-white px-6 py-3 rounded-lg font-medium transition-colors ml-4"
                 >
                   {model.attempts_count > 0 ? 'Retry' : 'Start'}
                 </button>
@@ -451,17 +600,6 @@ const PerformanceDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        {/* <div className="mb-8 text-center">
-          <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 bg-[#6EBE3A] rounded-2xl flex items-center justify-center">
-              <Clapperboard className="w-8 h-8 text-white" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-[#333333] mb-2">Roleplay Library</h1>
-          <p className="text-lg text-gray-600">Welcome back, {user?.name}</p>
-          <p className="text-sm text-gray-500">{user?.email}</p>
-        </div> */}
 
         {/* Navigation Tabs */}
         <div className="mb-8">
