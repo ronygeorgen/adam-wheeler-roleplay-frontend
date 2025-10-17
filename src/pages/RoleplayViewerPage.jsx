@@ -93,8 +93,8 @@ const RoleplayViewerPage = () => {
 
       // Clear success message after 3 seconds
       setTimeout(() => {
-        setSubmitStatus('');
-      }, 3000);
+        navigateWithEmail('/user');
+      }, 2000);
 
     } catch (error) {
       console.error('Error submitting feedback:', error);

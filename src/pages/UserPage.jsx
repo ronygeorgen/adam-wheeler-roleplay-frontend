@@ -452,7 +452,7 @@ const PerformanceDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8 text-center">
+        {/* <div className="mb-8 text-center">
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 bg-[#6EBE3A] rounded-2xl flex items-center justify-center">
               <Clapperboard className="w-8 h-8 text-white" />
@@ -461,7 +461,7 @@ const PerformanceDashboard = () => {
           <h1 className="text-4xl font-bold text-[#333333] mb-2">Roleplay Library</h1>
           <p className="text-lg text-gray-600">Welcome back, {user?.name}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
-        </div>
+        </div> */}
 
         {/* Navigation Tabs */}
         <div className="mb-8">
