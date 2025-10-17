@@ -1,23 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronRight, Clapperboard, AlertCircle } from 'lucide-react';
+import { 
+  ChevronRight, 
+  Clapperboard, 
+  AlertCircle, 
+  Trophy, 
+  TrendingUp, 
+  Activity,
+  Star,
+  Target,
+  Calendar,
+  Award
+} from 'lucide-react';
 import axiosInstance from '../api/axiosInstance';
+import { fetchUserPerformance } from '../features/roleplay/roleplaySlice';
 
 const UserPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const dispatch = useDispatch();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [locationId, setLocationId] = useState(null); // ADD THIS LINE
+  const [locationId, setLocationId] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'library'
+
+  const { userPerformance, performanceLoading } = useSelector((state) => state.roleplay);
 
   const userEmail = searchParams.get('email');
 
   useEffect(() => {
-    const fetchUserCategories = async () => {
+    const fetchUserData = async () => {
       if (!userEmail) {
         setError('Email parameter is required');
         setLoading(false);
@@ -27,24 +43,31 @@ const UserPage = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await axiosInstance.get(`/roleplay/user-access/get_user_categories/?email=${userEmail}`);
-        setUser(response.data.user);
-        setCategories(response.data.categories);
         
-        // Store location ID from the response - ADD THIS
-        if (response.data.user && response.data.user.location_id) {
-          setLocationId(response.data.user.location_id);
-          console.log('User location ID:', response.data.user.location_id); // Debug log
+        // Fetch user categories and performance data in parallel
+        const [categoriesResponse] = await Promise.all([
+          axiosInstance.get(`/roleplay/user-access/get_user_categories/?email=${userEmail}`),
+        ]);
+        
+        setUser(categoriesResponse.data.user);
+        setCategories(categoriesResponse.data.categories);
+        
+        if (categoriesResponse.data.user?.location_id) {
+          setLocationId(categoriesResponse.data.user.location_id);
         }
+
+        // Fetch performance data
+        dispatch(fetchUserPerformance(userEmail));
+        
       } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load categories');
+        setError(err.response?.data?.error || 'Failed to load user data');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUserCategories();
-  }, [userEmail]);
+    fetchUserData();
+  }, [userEmail, dispatch]);
 
   // Helper function to navigate with email parameter
   const navigateWithEmail = (path) => {
@@ -57,6 +80,162 @@ const UserPage = () => {
 
   const handleBackToCategories = () => {
     setSelectedCategory(null);
+  };
+
+  // Dashboard Components
+  const PerformanceDashboard = () => {
+    if (performanceLoading || !userPerformance) {
+      return (
+        <div className="animate-pulse">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="bg-gray-200 rounded-2xl h-32"></div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    const { overall_stats, category_stats, recent_activities } = userPerformance;
+
+    return (
+      <div className="space-y-8">
+        {/* Overall Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Average Score</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">
+                  {Math.round(overall_stats.average_score)}%
+                </p>
+              </div>
+              <div className="p-3 bg-blue-50 rounded-xl">
+                <TrendingUp className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Highest Score</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">
+                  {overall_stats.highest_score}%
+                </p>
+              </div>
+              <div className="p-3 bg-green-50 rounded-xl">
+                <Trophy className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Attempts</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">
+                  {overall_stats.total_scores}
+                </p>
+              </div>
+              <div className="p-3 bg-purple-50 rounded-xl">
+                <Target className="w-6 h-6 text-purple-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Feedbacks</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">
+                  {overall_stats.total_feedbacks}
+                </p>
+              </div>
+              <div className="p-3 bg-orange-50 rounded-xl">
+                <Star className="w-6 h-6 text-orange-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Category Performance */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Category Stats */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Award className="w-5 h-5 mr-2 text-[#6EBE3A]" />
+              Performance by Category
+            </h3>
+            <div className="space-y-4">
+              {category_stats.map((category) => (
+                <div key={category.category_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium text-gray-900">{category.category_name}</p>
+                    <p className="text-sm text-gray-600">
+                      {category.attempts_count} attempt{category.attempts_count !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">
+                      {Math.round(category.average_score)}%
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      High: {category.highest_score}%
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {category_stats.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No performance data yet</p>
+              )}
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Activity className="w-5 h-5 mr-2 text-[#6EBE3A]" />
+              Recent Activity
+            </h3>
+            <div className="space-y-3">
+              {recent_activities.map((activity, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className={`p-2 rounded-full ${
+                      activity.type === 'score' ? 'bg-blue-100' : 'bg-green-100'
+                    }`}>
+                      {activity.type === 'score' ? (
+                        <Target className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <Star className="w-4 h-4 text-green-600" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">
+                        {activity.type === 'score' ? activity.model_name : 'Feedback Submitted'}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {activity.type === 'score' ? activity.category_name : 'Performance Review'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900">{activity.score}%</p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(activity.timestamp).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {recent_activities.length === 0 && (
+                <p className="text-gray-500 text-center py-4">No recent activity</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -85,6 +264,7 @@ const UserPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 bg-[#6EBE3A] rounded-2xl flex items-center justify-center">
@@ -94,76 +274,106 @@ const UserPage = () => {
           <h1 className="text-4xl font-bold text-[#333333] mb-2">Roleplay Library</h1>
           <p className="text-lg text-gray-600">Welcome back, {user?.name}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
-          {/* Optional: Show location ID for debugging */}
-          {/* {locationId && (
-            <p className="text-xs text-gray-400 mt-1">Location: {locationId}</p>
-          )} */}
         </div>
 
-        {!selectedCategory ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category)}
-                className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-[#6EBE3A] transition-all text-left group"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-semibold text-[#333333] group-hover:text-[#6EBE3A] transition-colors">
-                    {category.name}
-                  </h3>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#6EBE3A] transition-colors" />
-                </div>
-                <p className="text-gray-600">
-                  {category.models.length} {category.models.length === 1 ? 'roleplay' : 'roleplays'} available
-                </p>
-              </button>
-            ))}
-
-            {categories.length === 0 && (
-              <div className="col-span-full text-center py-12 text-gray-500">
-                No categories assigned to your account
-              </div>
-            )}
-          </div>
-        ) : (
-          <div>
+        {/* Navigation Tabs */}
+        <div className="mb-8">
+          <div className="flex space-x-1 bg-gray-100 p-1 rounded-2xl w-fit mx-auto">
             <button
-              onClick={handleBackToCategories}
-              className="mb-6 text-[#6EBE3A] hover:text-[#4C9441] font-medium flex items-center space-x-2"
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-6 py-3 rounded-2xl font-medium transition-all ${
+                activeTab === 'dashboard'
+                  ? 'bg-white text-[#333333] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
             >
-              <ChevronRight className="w-4 h-4 rotate-180" />
-              <span>Back to Categories</span>
+              <TrendingUp className="w-4 h-4 inline mr-2" />
+              Performance Dashboard
             </button>
+            <button
+              onClick={() => setActiveTab('library')}
+              className={`px-6 py-3 rounded-2xl font-medium transition-all ${
+                activeTab === 'library'
+                  ? 'bg-white text-[#333333] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Clapperboard className="w-4 h-4 inline mr-2" />
+              Roleplay Library
+            </button>
+          </div>
+        </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
-              <h2 className="text-2xl font-bold text-[#333333]">{selectedCategory.name}</h2>
-            </div>
-
+        {/* Content based on active tab */}
+        {activeTab === 'dashboard' ? (
+          <PerformanceDashboard />
+        ) : (
+          /* Original Library Content */
+          !selectedCategory ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {selectedCategory.models.map((model) => (
+              {categories.map((category) => (
                 <button
-                  key={model.id}
-                  onClick={() => handleModelClick(selectedCategory.id, model.id)}
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category)}
                   className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-[#6EBE3A] transition-all text-left group"
                 >
-                  <div className="flex items-start justify-between">
-                    <h3 className="text-lg font-semibold text-[#333333] group-hover:text-[#6EBE3A] transition-colors flex-1">
-                      {model.name}
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xl font-semibold text-[#333333] group-hover:text-[#6EBE3A] transition-colors">
+                      {category.name}
                     </h3>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#6EBE3A] transition-colors flex-shrink-0 mt-1" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#6EBE3A] transition-colors" />
                   </div>
-                  <p className="text-sm text-gray-500 mt-2">Click to start roleplay</p>
+                  <p className="text-gray-600">
+                    {category.models.length} {category.models.length === 1 ? 'roleplay' : 'roleplays'} available
+                  </p>
                 </button>
               ))}
 
-              {selectedCategory.models.length === 0 && (
+              {categories.length === 0 && (
                 <div className="col-span-full text-center py-12 text-gray-500">
-                  No roleplays available in this category
+                  No categories assigned to your account
                 </div>
               )}
             </div>
-          </div>
+          ) : (
+            <div>
+              <button
+                onClick={handleBackToCategories}
+                className="mb-6 text-[#6EBE3A] hover:text-[#4C9441] font-medium flex items-center space-x-2"
+              >
+                <ChevronRight className="w-4 h-4 rotate-180" />
+                <span>Back to Categories</span>
+              </button>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-6">
+                <h2 className="text-2xl font-bold text-[#333333]">{selectedCategory.name}</h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {selectedCategory.models.map((model) => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleModelClick(selectedCategory.id, model.id)}
+                    className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-[#6EBE3A] transition-all text-left group"
+                  >
+                    <div className="flex items-start justify-between">
+                      <h3 className="text-lg font-semibold text-[#333333] group-hover:text-[#6EBE3A] transition-colors flex-1">
+                        {model.name}
+                      </h3>
+                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#6EBE3A] transition-colors flex-shrink-0 mt-1" />
+                    </div>
+                    <p className="text-sm text-gray-500 mt-2">Click to start roleplay</p>
+                  </button>
+                ))}
+
+                {selectedCategory.models.length === 0 && (
+                  <div className="col-span-full text-center py-12 text-gray-500">
+                    No roleplays available in this category
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
       </div>
     </div>

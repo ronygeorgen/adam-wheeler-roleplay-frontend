@@ -85,6 +85,33 @@ export const deleteCategory = createAsyncThunk(
   }
 );
 
+
+export const fetchUserPerformance = createAsyncThunk(
+  'roleplay/fetchUserPerformance',
+  async (email, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(`/roleplay/performance/user_stats/?email=${email}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to fetch user performance');
+    }
+  }
+);
+
+export const fetchCategoryPerformance = createAsyncThunk(
+  'roleplay/fetchCategoryPerformance',
+  async ({ email, categoryId }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(
+        `/roleplay/performance/category_performance/?email=${email}&category_id=${categoryId}`
+      );
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to fetch category performance');
+    }
+  }
+);
+
 export const deleteModel = createAsyncThunk(
   'roleplay/deleteModel',
   async (modelId, { rejectWithValue }) => {
@@ -106,6 +133,10 @@ const roleplaySlice = createSlice({
     error: null,
     selectedCategory: null,
     selectedModel: null,
+    userPerformance: null,
+    categoryPerformance: null,
+    performanceLoading: false,
+    performanceError: null,
   },
   reducers: {
     setSelectedCategory: (state, action) => {
@@ -116,6 +147,11 @@ const roleplaySlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
+    },
+    clearPerformanceData: (state) => {
+      state.userPerformance = null;
+      state.categoryPerformance = null;
+      state.performanceError = null;
     },
   },
   extraReducers: (builder) => {
@@ -163,9 +199,33 @@ const roleplaySlice = createSlice({
       })
       .addCase(deleteModel.fulfilled, (state, action) => {
         state.models = state.models.filter(model => model.id !== action.payload);
+      })
+      .addCase(fetchUserPerformance.pending, (state) => {
+        state.performanceLoading = true;
+        state.performanceError = null;
+      })
+      .addCase(fetchUserPerformance.fulfilled, (state, action) => {
+        state.performanceLoading = false;
+        state.userPerformance = action.payload;
+      })
+      .addCase(fetchUserPerformance.rejected, (state, action) => {
+        state.performanceLoading = false;
+        state.performanceError = action.payload;
+      })
+      .addCase(fetchCategoryPerformance.pending, (state) => {
+        state.performanceLoading = true;
+        state.performanceError = null;
+      })
+      .addCase(fetchCategoryPerformance.fulfilled, (state, action) => {
+        state.performanceLoading = false;
+        state.categoryPerformance = action.payload;
+      })
+      .addCase(fetchCategoryPerformance.rejected, (state, action) => {
+        state.performanceLoading = false;
+        state.performanceError = action.payload;
       });
   },
 });
 
-export const { setSelectedCategory, setSelectedModel, clearError } = roleplaySlice.actions;
+export const { setSelectedCategory, setSelectedModel, clearError, clearPerformanceData  } = roleplaySlice.actions;
 export default roleplaySlice.reducer;
