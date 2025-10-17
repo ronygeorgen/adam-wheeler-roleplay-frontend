@@ -4,14 +4,16 @@ import { Edit, Power, PowerOff, Mail, Phone, MapPin, Trash2 } from 'lucide-react
 import { fetchUsers, updateUserStatus, setSelectedUser, deleteUser } from './usersSlice';
 import Button from '../../components/Button';
 
-const UsersList = ({ onEditUser }) => {
+const UsersList = ({ onEditUser, locationId }) => {
   const dispatch = useDispatch();
   const { users, loading, error } = useSelector((state) => state.users);
   const [deleting, setDeleting] = useState({});
 
   useEffect(() => {
-    dispatch(fetchUsers());
-  }, [dispatch]);
+    if (locationId) {
+      dispatch(fetchUsers(locationId));
+    }
+  }, [dispatch, locationId]);
 
   const handleToggleStatus = async (user) => {
     const newStatus = user.status === 'active' ? 'disabled' : 'active';

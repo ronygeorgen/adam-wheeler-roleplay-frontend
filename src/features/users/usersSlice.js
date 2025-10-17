@@ -1,12 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axiosInstance from '../../api/axiosInstance';
 
-export const fetchUsers = createAsyncThunk(
-  'users/fetchUsers',
+export const fetchLocationsWithUsers = createAsyncThunk(
+  'users/fetchLocationsWithUsers',
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get('/ghl/get-users/');
-      console.log('Fetched users data:', response.data); // ADD DEBUG LOG
+      const response = await axiosInstance.get('/ghl/locations-with-users/');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data || 'Failed to fetch locations with users');
+    }
+  }
+);
+
+export const fetchUsers = createAsyncThunk(
+  'users/fetchUsers',
+  async (locationId, { rejectWithValue }) => {
+    try {
+      const url = locationId ? `/ghl/get-users/?location_id=${encodeURIComponent(locationId)}` : '/ghl/get-users/';
+      const response = await axiosInstance.get(url);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data || 'Failed to fetch users');
@@ -78,6 +90,8 @@ const usersSlice = createSlice({
     error: null,
     selectedUser: null,
     assigningCategories: false,
+    locationsWithUsers: [],
+    locationsLoading: false,
   },
   reducers: {
     setSelectedUser: (state, action) => {
@@ -89,6 +103,18 @@ const usersSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchLocationsWithUsers.pending, (state) => {
+        state.locationsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchLocationsWithUsers.fulfilled, (state, action) => {
+        state.locationsLoading = false;
+        state.locationsWithUsers = Array.isArray(action.payload) ? action.payload : [];
+      })
+      .addCase(fetchLocationsWithUsers.rejected, (state, action) => {
+        state.locationsLoading = false;
+        state.error = action.payload;
+      })
       .addCase(fetchUsers.pending, (state) => {
         state.loading = true;
         state.error = null;

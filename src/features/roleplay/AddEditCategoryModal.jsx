@@ -3,18 +3,27 @@ import { useDispatch, useSelector } from 'react-redux';
 import Modal from '../../components/Modal';
 import Button from '../../components/Button';
 import { createCategory, updateCategory } from './roleplaySlice';
+import { useLocation } from 'react-router-dom';
 
 const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
   const dispatch = useDispatch();
   const { selectedCategory } = useSelector((state) => state.roleplay);
+  const { users } = useSelector((state) => state.users);
   const [name, setName] = useState('');
+  const [assignedUserId, setAssignedUserId] = useState('');
+  const location = useLocation();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isEdit && selectedCategory) {
       setName(selectedCategory.name);
+      // If editing, prefill assigned user if available
+      if (selectedCategory.user_id) {
+        setAssignedUserId(String(selectedCategory.user_id));
+      }
     } else {
       setName('');
+      setAssignedUserId('');
     }
   }, [isEdit, selectedCategory, isOpen]);
 
@@ -28,13 +37,16 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
         await dispatch(
           updateCategory({
             id: selectedCategory.id,
-            data: { name: name.trim() },
+            data: { name: name.trim(), user_id: assignedUserId || null },
           })
         ).unwrap();
       } else {
-        await dispatch(createCategory({ name: name.trim() })).unwrap();
+        const params = new URLSearchParams(location.search);
+        const locationId = params.get('location');
+        await dispatch(createCategory({ name: name.trim(), user_id: assignedUserId, location_id: locationId })).unwrap();
       }
       setName('');
+      setAssignedUserId('');
       onClose();
     } catch (error) {
       console.error('Failed to save category:', error);
@@ -66,11 +78,35 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
           />
         </div>
 
+        {!isEdit && (
+          <div>
+            <label htmlFor="assignedUser" className="block text-sm font-medium text-gray-700 mb-2">
+              Assign to User
+            </label>
+            <select
+              id="assignedUser"
+              value={assignedUserId}
+              onChange={(e) => setAssignedUserId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              required
+            >
+              <option value="" disabled>
+                Select a user
+              </option>
+              {Array.isArray(users) && users.map((u) => (
+                <option key={u.user_id} value={u.user_id}>
+                  {u.name} ({u.email})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex justify-end space-x-3 pt-4">
           <Button variant="outline" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button type="submit" disabled={saving || !name.trim()}>
+          <Button type="submit" disabled={saving || !name.trim() || (!isEdit && !assignedUserId)}>
             {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
           </Button>
         </div>
