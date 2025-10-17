@@ -72,7 +72,8 @@ const RoleplayViewerPage = () => {
     try {
       const submissionData = {
         ...formData,
-        score: parseInt(formData.score) // Convert to number for backend
+        score: parseInt(formData.score), // Convert to number for backend
+        model: parseInt(modelId) // Add the missing model ID
       };
 
       const response = await axiosInstance.post('/roleplay/feedback/', submissionData);
