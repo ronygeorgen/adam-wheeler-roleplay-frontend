@@ -11,19 +11,21 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
   const { users } = useSelector((state) => state.users);
   const [name, setName] = useState('');
   const [assignedUserId, setAssignedUserId] = useState('');
+  const [isDefault, setIsDefault] = useState(false); // Add this state
   const location = useLocation();
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isEdit && selectedCategory) {
       setName(selectedCategory.name);
-      // If editing, prefill assigned user if available
+      setIsDefault(selectedCategory.is_default || false); // Set default value
       if (selectedCategory.user_id) {
         setAssignedUserId(String(selectedCategory.user_id));
       }
     } else {
       setName('');
       setAssignedUserId('');
+      setIsDefault(false); // Reset to false for new categories
     }
   }, [isEdit, selectedCategory, isOpen]);
 
@@ -33,20 +35,30 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
 
     setSaving(true);
     try {
+      const categoryData = { 
+        name: name.trim(), 
+        user_id: assignedUserId || null,
+        is_default: isDefault // Include is_default in data
+      };
+
       if (isEdit && selectedCategory) {
         await dispatch(
           updateCategory({
             id: selectedCategory.id,
-            data: { name: name.trim(), user_id: assignedUserId || null },
+            data: categoryData,
           })
         ).unwrap();
       } else {
         const params = new URLSearchParams(location.search);
         const locationId = params.get('location');
-        await dispatch(createCategory({ name: name.trim(), user_id: assignedUserId, location_id: locationId })).unwrap();
+        await dispatch(createCategory({ 
+          ...categoryData, 
+          location_id: locationId 
+        })).unwrap();
       }
       setName('');
       setAssignedUserId('');
+      setIsDefault(false);
       onClose();
     } catch (error) {
       console.error('Failed to save category:', error);
@@ -78,7 +90,24 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
           />
         </div>
 
-        {!isEdit && (
+        {/* Add Default Category Checkbox */}
+        <div className="flex items-center space-x-3">
+          <input
+            type="checkbox"
+            id="isDefault"
+            checked={isDefault}
+            onChange={(e) => setIsDefault(e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="isDefault" className="text-sm font-medium text-gray-700">
+            Set as default category
+          </label>
+        </div>
+        <p className="text-xs text-gray-500 -mt-2">
+          Default categories are automatically assigned to all users (existing and new)
+        </p>
+
+        {!isEdit && !isDefault && ( // Only show user assignment if not default
           <div>
             <label htmlFor="assignedUser" className="block text-sm font-medium text-gray-700 mb-2">
               Assign to User
@@ -88,7 +117,7 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
               value={assignedUserId}
               onChange={(e) => setAssignedUserId(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-              required
+              required={!isDefault}
             >
               <option value="" disabled>
                 Select a user
@@ -106,7 +135,7 @@ const AddEditCategoryModal = ({ isOpen, onClose, isEdit = false }) => {
           <Button variant="outline" onClick={onClose} type="button">
             Cancel
           </Button>
-          <Button type="submit" disabled={saving || !name.trim() || (!isEdit && !assignedUserId)}>
+          <Button type="submit" disabled={saving || !name.trim() || (!isEdit && !isDefault && !assignedUserId)}>
             {saving ? 'Saving...' : isEdit ? 'Update' : 'Create'}
           </Button>
         </div>

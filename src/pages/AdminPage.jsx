@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { RefreshCw, Users, Clapperboard, UserCheck, MapPin, ChevronDown, Check } from 'lucide-react';
 import UsersList from '../features/users/UsersList';
 import EditUserModal from '../features/users/EditUserModal';
+import UserReportModal from '../features/users/UserReportModal'; // Add this import
 import RolePlayList from '../features/roleplay/RolePlayList';
 import AddEditCategoryModal from '../features/roleplay/AddEditCategoryModal';
 import AddEditModelModal from '../features/roleplay/AddEditModelModal';
@@ -16,6 +17,7 @@ const AdminPage = () => {
   const { users, assigningCategories, locationsWithUsers, locationsLoading } = useSelector((state) => state.users);
   const [activeTab, setActiveTab] = useState('users');
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false); // Add this state
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isEditCategoryMode, setIsEditCategoryMode] = useState(false);
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
@@ -124,6 +126,11 @@ const AdminPage = () => {
   const handleEditModel = () => {
     setIsEditModelMode(true);
     setIsModelModalOpen(true);
+  };
+
+  // Add this function to handle viewing reports
+  const handleViewReport = () => {
+    setIsReportModalOpen(true);
   };
 
   // Get current location details
@@ -326,6 +333,7 @@ const AdminPage = () => {
                     
                     <UsersList 
                       onEditUser={() => setIsEditUserModalOpen(true)} 
+                      onViewReport={handleViewReport} // Add this prop
                       locationId={locationId} 
                     />
                   </>
@@ -349,6 +357,13 @@ const AdminPage = () => {
       <EditUserModal
         isOpen={isEditUserModalOpen}
         onClose={() => setIsEditUserModalOpen(false)}
+      />
+
+      {/* Add the UserReportModal */}
+      <UserReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        user={useSelector((state) => state.users.selectedUser)} // Get selected user from Redux
       />
 
       <AddEditCategoryModal

@@ -66,14 +66,28 @@ const RoleplayViewerPage = () => {
       return;
     }
 
+    // Convert score to number and validate minimum score
+    const scoreValue = parseInt(formData.score);
+    const currentModel = models.find((m) => m.id === parseInt(modelId));
+    
+    if (currentModel && scoreValue < currentModel.min_score_to_pass) {
+      setSubmitStatus(`❌ You need minimum ${currentModel.min_score_to_pass}% to submit. Your score: ${scoreValue}%`);
+      return;
+    }
+
+    // Validate score range
+    if (scoreValue < 0 || scoreValue > 100) {
+      setSubmitStatus('❌ Score must be between 0 and 100');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitStatus('Submitting feedback...');
 
     try {
       const submissionData = {
-        // Only send the necessary fields
         email: formData.email,
-        score: parseInt(formData.score),
+        score: scoreValue,
         strengths: formData.strengths,
         improvements: formData.improvements,
         model: parseInt(modelId)
@@ -163,6 +177,25 @@ const RoleplayViewerPage = () => {
               Feedback Form
             </h2>
 
+            {/* Minimum Score Requirement */}
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    Minimum Score Requirement
+                  </h3>
+                  <div className="mt-1 text-sm text-yellow-700">
+                    <p>You need to achieve at least <strong>{model.min_score_to_pass}%</strong> to submit this feedback.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Submission Status */}
             {submitStatus && (
               <div className={`p-3 rounded-md mb-4 text-sm ${
@@ -182,9 +215,20 @@ const RoleplayViewerPage = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   What was your score? <span className="text-red-500">*</span>
+                  {formData.score && (
+                    <span className={`ml-2 text-xs font-medium ${
+                      parseInt(formData.score) >= model.min_score_to_pass 
+                        ? 'text-green-600' 
+                        : 'text-red-600'
+                    }`}>
+                      {parseInt(formData.score) >= model.min_score_to_pass 
+                        ? '✓ Meets requirement' 
+                        : `❌ Needs ${model.min_score_to_pass}%`}
+                    </span>
+                  )}
                 </label>
                 <input
-                  type="text"
+                  type="number"
                   name="score"
                   placeholder="Enter your score (0-100)"
                   required
@@ -231,7 +275,7 @@ const RoleplayViewerPage = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (formData.score && parseInt(formData.score) < model.min_score_to_pass)}
                 className="w-full bg-lime-500 hover:bg-lime-600 disabled:bg-lime-300 text-white font-semibold py-3 rounded-md transition-all duration-200 flex items-center justify-center"
               >
                 {isSubmitting ? (
@@ -253,6 +297,7 @@ const RoleplayViewerPage = () => {
                 <li>Fill out this feedback form with your results</li>
                 <li>Your score and feedback will be saved to your training record</li>
                 <li>Use the same email you used during onboarding</li>
+                <li>Minimum score required: <strong>{model.min_score_to_pass}%</strong></li>
               </ol>
             </div>
           </div>

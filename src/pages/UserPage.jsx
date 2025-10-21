@@ -182,100 +182,172 @@ const PerformanceDashboard = () => {
       </div>
 
       {/* Categories Grid */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Award className="w-5 h-5 mr-2 text-[#6EBE3A]" />
-            Your Categories
-            <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-              {totalCategories} categories
-            </span>
-          </h3>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setViewMode('overview')}
-              className="px-3 py-1 text-sm bg-[#6EBE3A] text-white rounded-lg"
-            >
-              Overview
-            </button>
-          </div>
-        </div>
+      {/* Categories Grid */}
+<div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+  <div className="flex items-center justify-between mb-6">
+    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+      <Award className="w-5 h-5 mr-2 text-[#6EBE3A]" />
+      Your Categories
+      <span className="ml-2 text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+        {totalCategories} categories
+      </span>
+    </h3>
+    <div className="flex space-x-2">
+      <button
+        onClick={() => setViewMode('overview')}
+        className="px-3 py-1 text-sm bg-[#6EBE3A] text-white rounded-lg"
+      >
+        Overview
+      </button>
+    </div>
+  </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {category_stats.map((category) => (
-            <div
-              key={category.category_id}
-              className={`border rounded-2xl p-6 cursor-pointer transition-all hover:shadow-lg ${
-                category.attempts_count > 0
-                  ? 'border-green-200 bg-green-50 hover:border-green-300'
-                  : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-              }`}
-              onClick={() => {
-                setSelectedCategory(category);
-                setViewMode('category');
-              }}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-semibold text-gray-900 text-lg">
-                  {category.category_name}
-                </h4>
-                {category.attempts_count > 0 ? (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {category_stats.map((category) => {
+      // Calculate incomplete models (models that haven't met minimum attempts)
+      const incompleteModels = category.models.filter(model => {
+        const hasMinimumAttempts = model.attempts_count >= model.min_attempts_required;
+        return !hasMinimumAttempts && model.attempts_count > 0;
+      });
+      
+      const hasIncompleteModels = incompleteModels.length > 0;
+      const totalRemainingAttempts = incompleteModels.reduce((total, model) => {
+        return total + Math.max(0, model.min_attempts_required - model.attempts_count);
+      }, 0);
+
+      return (
+        <div
+          key={category.category_id}
+          className={`border rounded-2xl p-6 cursor-pointer transition-all hover:shadow-lg relative ${
+            category.attempts_count > 0
+              ? 'border-green-200 bg-green-50 hover:border-green-300'
+              : 'border-gray-200 bg-gray-50 hover:border-gray-300'
+          }`}
+          onClick={() => {
+            setSelectedCategory(category);
+            setViewMode('category');
+          }}
+        >
+          {/* Incomplete Models Notification Badge */}
+          {hasIncompleteModels && (
+            <div className="absolute -top-2 -right-2">
+              <div className="relative group">
+                <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full flex items-center shadow-sm">
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {incompleteModels.length}
+                </span>
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                  {incompleteModels.length} model{incompleteModels.length !== 1 ? 's' : ''} need{incompleteModels.length === 1 ? 's' : ''} more attempts
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold text-gray-900 text-lg">
+              {category.category_name}
+            </h4>
+            <div className="flex items-center space-x-2">
+              {category.attempts_count > 0 ? (
+                <>
                   <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
                     {category.models_attempted}/{category.models_count} models
                   </span>
-                ) : (
-                  <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
-                    Not started
-                  </span>
-                )}
-              </div>
+                  {hasIncompleteModels && (
+                    <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">
+                      {totalRemainingAttempts} attempt{totalRemainingAttempts !== 1 ? 's' : ''} left
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">
+                  Not started
+                </span>
+              )}
+            </div>
+          </div>
 
-              {category.attempts_count > 0 ? (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-gray-600">Attempts</p>
-                      <p className="font-semibold text-gray-900">{category.attempts_count}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Average</p>
-                      <p className="font-semibold text-gray-900">
-                        {Math.round(category.average_score)}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Highest</p>
-                      <p className="font-semibold text-gray-900">
-                        {category.highest_score}%
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600">Lowest</p>
-                      <p className="font-semibold text-gray-900">
-                        {category.lowest_score}%
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Last: {new Date(category.last_attempt).toLocaleDateString()}
+          {category.attempts_count > 0 ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <p className="text-gray-600">Attempts</p>
+                  <p className="font-semibold text-gray-900">{category.attempts_count}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Average</p>
+                  <p className="font-semibold text-gray-900">
+                    {Math.round(category.average_score)}%
                   </p>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">
-                  {category.models_count} model{category.models_count !== 1 ? 's' : ''} available
-                </p>
-              )}
-
-              <div className="mt-4 pt-3 border-t border-gray-200">
-                <button className="w-full text-[#6EBE3A] hover:text-[#4C9441] font-medium text-sm flex items-center justify-center">
-                  View Details
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </button>
+                <div>
+                  <p className="text-gray-600">Highest</p>
+                  <p className="font-semibold text-gray-900">
+                    {category.highest_score}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Lowest</p>
+                  <p className="font-semibold text-gray-900">
+                    {category.lowest_score}%
+                  </p>
+                </div>
               </div>
+              
+              {/* Progress Section for Incomplete Models */}
+              {hasIncompleteModels && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+                    <p className="text-sm font-medium text-yellow-800">
+                      Incomplete Models
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {incompleteModels.slice(0, 2).map((model) => {
+                      const remainingAttempts = Math.max(0, model.min_attempts_required - model.attempts_count);
+                      return (
+                        <div key={model.model_id} className="flex justify-between items-center text-xs">
+                          <span className="text-yellow-700 truncate flex-1 mr-2">
+                            {model.model_name}
+                          </span>
+                          <span className="text-yellow-600 font-medium whitespace-nowrap">
+                            {remainingAttempts} more
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {incompleteModels.length > 2 && (
+                      <p className="text-xs text-yellow-600 text-center">
+                        +{incompleteModels.length - 2} more model{incompleteModels.length - 2 !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <p className="text-xs text-gray-500">
+                Last: {new Date(category.last_attempt).toLocaleDateString()}
+              </p>
             </div>
-          ))}
+          ) : (
+            <p className="text-sm text-gray-500">
+              {category.models_count} model{category.models_count !== 1 ? 's' : ''} available
+            </p>
+          )}
+
+          <div className="mt-4 pt-3 border-t border-gray-200">
+            <button className="w-full text-[#6EBE3A] hover:text-[#4C9441] font-medium text-sm flex items-center justify-center">
+              View Details
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </button>
+          </div>
         </div>
-      </div>
+      );
+    })}
+  </div>
+</div>
 
       {/* Recent Activity */}
       {recent_roleplay && (
@@ -342,6 +414,20 @@ const PerformanceDashboard = () => {
             </div>
           </div>
         </div>
+        {/* Attempt Requirements */}
+        {selectedModel.attempts_count < selectedCategory.models.find(m => m.model_id === selectedModel.model_id)?.min_attempts_required && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-yellow-600 mr-3" />
+              <div>
+                <h4 className="font-medium text-yellow-800">Minimum Attempts Required</h4>
+                <p className="text-sm text-yellow-700 mt-1">
+                  You need {selectedCategory.models.find(m => m.model_id === selectedModel.model_id)?.min_attempts_required - selectedModel.attempts_count} more attempt{selectedCategory.models.find(m => m.model_id === selectedModel.model_id)?.min_attempts_required - selectedModel.attempts_count !== 1 ? 's' : ''} to complete the minimum requirement of {selectedCategory.models.find(m => m.model_id === selectedModel.model_id)?.min_attempts_required} attempts.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Model Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -502,65 +588,86 @@ const PerformanceDashboard = () => {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Model Performance</h3>
           <div className="space-y-4">
-            {selectedCategory.models.map((model) => (
-              <div
-                key={model.model_id}
-                className={`flex items-center justify-between p-6 rounded-xl border transition-all ${
-                  model.attempts_count > 0
-                    ? 'bg-green-50 border-green-200 hover:bg-green-100 cursor-pointer'
-                    : 'bg-gray-50 border-gray-200'
-                }`}
-                onClick={() => model.attempts_count > 0 && setSelectedModel(model)}
-              >
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="font-semibold text-gray-900 text-lg">{model.model_name}</p>
-                    {model.attempts_count > 0 && (
-                      <span className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">
-                        {model.attempts_count} attempt{model.attempts_count !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {model.attempts_count > 0 ? (
-                    <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-600">Latest Score</p>
-                        <p className="font-semibold text-gray-900 text-lg">{model.latest_score}%</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Highest</p>
-                        <p className="font-semibold text-gray-900">{model.highest_score}%</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-600">Last Attempt</p>
-                        <p className="font-semibold text-gray-900">
-                          {new Date(model.last_attempt).toLocaleDateString()}
-                        </p>
+            {selectedCategory.models.map((model) => {
+              // Calculate remaining attempts needed
+              const remainingAttempts = Math.max(0, model.min_attempts_required - model.attempts_count);
+              const hasMinimumAttempts = model.attempts_count >= model.min_attempts_required;
+              
+              return (
+                <div
+                  key={model.model_id}
+                  className={`flex items-center justify-between p-6 rounded-xl border transition-all ${
+                    model.attempts_count > 0
+                      ? 'bg-green-50 border-green-200 hover:bg-green-100 cursor-pointer'
+                      : 'bg-gray-50 border-gray-200'
+                  }`}
+                  onClick={() => model.attempts_count > 0 && setSelectedModel(model)}
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="font-semibold text-gray-900 text-lg">{model.model_name}</p>
+                      <div className="flex items-center space-x-2">
+                        {/* Minimum Attempts Notification */}
+                        {!hasMinimumAttempts && model.attempts_count > 0 && (
+                          <div className="relative group">
+                            <span className="bg-yellow-100 text-yellow-800 text-sm px-3 py-1 rounded-full flex items-center">
+                              <AlertCircle className="w-4 h-4 mr-1" />
+                              {remainingAttempts} more attempt{remainingAttempts !== 1 ? 's' : ''}
+                            </span>
+                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                              Minimum {model.min_attempts_required} attempts required
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                            </div>
+                          </div>
+                        )}
+                        {model.attempts_count > 0 && (
+                          <span className="bg-green-100 text-green-800 text-sm px-3 py-1 rounded-full">
+                            {model.attempts_count} attempt{model.attempts_count !== 1 ? 's' : ''}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">Not attempted yet</p>
-                  )}
-                  
-                  {model.attempts_count > 0 && (
-                    <p className="text-xs text-[#6EBE3A] font-medium mt-3 flex items-center">
-                      Click to view detailed feedback history
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </p>
-                  )}
+                    
+                    {model.attempts_count > 0 ? (
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-gray-600">Latest Score</p>
+                          <p className="font-semibold text-gray-900 text-lg">{model.latest_score}%</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Highest</p>
+                          <p className="font-semibold text-gray-900">{model.highest_score}%</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600">Last Attempt</p>
+                          <p className="font-semibold text-gray-900">
+                            {new Date(model.last_attempt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">Not attempted yet</p>
+                    )}
+                    
+                    {model.attempts_count > 0 && (
+                      <p className="text-xs text-[#6EBE3A] font-medium mt-3 flex items-center">
+                        Click to view detailed feedback history
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleModelClick(selectedCategory.category_id, model.model_id);
+                    }}
+                    className="bg-[#6EBE3A] hover:bg-[#4C9441] text-white px-6 py-3 rounded-lg font-medium transition-colors ml-4"
+                  >
+                    {model.attempts_count > 0 ? 'Retry' : 'Start'}
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleModelClick(selectedCategory.category_id, model.model_id);
-                  }}
-                  className="bg-[#6EBE3A] hover:bg-[#4C9441] text-white px-6 py-3 rounded-lg font-medium transition-colors ml-4"
-                >
-                  {model.attempts_count > 0 ? 'Retry' : 'Start'}
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -675,21 +782,73 @@ const PerformanceDashboard = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {selectedCategory.models.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => handleModelClick(selectedCategory.id, model.id)}
-                    className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-[#6EBE3A] transition-all text-left group"
-                  >
-                    <div className="flex items-start justify-between">
-                      <h3 className="text-lg font-semibold text-[#333333] group-hover:text-[#6EBE3A] transition-colors flex-1">
-                        {model.name}
-                      </h3>
-                      <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#6EBE3A] transition-colors flex-shrink-0 mt-1" />
-                    </div>
-                    <p className="text-sm text-gray-500 mt-2">Click to start roleplay</p>
-                  </button>
-                ))}
+                {selectedCategory.models.map((model) => {
+  const modelPerformance = userPerformance?.category_stats
+    ?.find(cat => cat.category_id === selectedCategory.id)
+    ?.models?.find(m => m.model_id === model.id);
+  
+  const attemptsCount = modelPerformance?.attempts_count || 0;
+  const minAttemptsRequired = model.min_attempts_required;
+  const remainingAttempts = Math.max(0, minAttemptsRequired - attemptsCount);
+  const hasMinimumAttempts = attemptsCount >= minAttemptsRequired;
+
+  return (
+    <button
+      key={model.id}
+      onClick={() => handleModelClick(selectedCategory.id, model.id)}
+      className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-[#6EBE3A] transition-all text-left group relative"
+    >
+      {/* Attempt Notification Badge */}
+      {attemptsCount > 0 && !hasMinimumAttempts && (
+        <div className="absolute -top-2 -right-2">
+          <div className="relative group">
+            <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full flex items-center">
+              <AlertCircle className="w-3 h-3 mr-1" />
+              {remainingAttempts}
+            </span>
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+              {remainingAttempts} more attempt{remainingAttempts !== 1 ? 's' : ''} needed
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="flex items-start justify-between">
+        <h3 className="text-lg font-semibold text-[#333333] group-hover:text-[#6EBE3A] transition-colors flex-1">
+          {model.name}
+        </h3>
+        <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-[#6EBE3A] transition-colors flex-shrink-0 mt-1" />
+      </div>
+      
+      {/* Show attempt progress */}
+      <div className="mt-2">
+        {attemptsCount > 0 ? (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">
+              {attemptsCount} attempt{attemptsCount !== 1 ? 's' : ''}
+            </span>
+            {!hasMinimumAttempts && (
+              <span className="text-yellow-600 text-xs">
+                {remainingAttempts} more needed
+              </span>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">Click to start roleplay</p>
+        )}
+      </div>
+      
+      {/* Minimum requirements info */}
+      <div className="mt-3 pt-3 border-t border-gray-100">
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>Min score: {model.min_score_to_pass}%</span>
+          <span>Min attempts: {model.min_attempts_required}</span>
+        </div>
+      </div>
+    </button>
+  );
+})}
 
                 {selectedCategory.models.length === 0 && (
                   <div className="col-span-full text-center py-12 text-gray-500">

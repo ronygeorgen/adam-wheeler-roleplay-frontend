@@ -1,10 +1,10 @@
-import { useState,useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Edit, Power, PowerOff, Mail, Phone, MapPin, Trash2 } from 'lucide-react';
+import { Edit, Power, PowerOff, Mail, Phone, MapPin, Trash2, BarChart3 } from 'lucide-react';
 import { fetchUsers, updateUserStatus, setSelectedUser, deleteUser } from './usersSlice';
 import Button from '../../components/Button';
 
-const UsersList = ({ onEditUser, locationId }) => {
+const UsersList = ({ onEditUser, onViewReport, locationId }) => {
   const dispatch = useDispatch();
   const { users, loading, error } = useSelector((state) => state.users);
   const [deleting, setDeleting] = useState({});
@@ -23,6 +23,11 @@ const UsersList = ({ onEditUser, locationId }) => {
   const handleEditUser = (user) => {
     dispatch(setSelectedUser(user));
     onEditUser();
+  };
+
+  const handleViewReport = (user) => {
+    dispatch(setSelectedUser(user));
+    onViewReport();
   };
 
   const handleDeleteUser = async (user) => {
@@ -119,6 +124,14 @@ const UsersList = ({ onEditUser, locationId }) => {
               </div>
 
               <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={BarChart3}
+                  onClick={() => handleViewReport(user)}
+                >
+                  View Report
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"

@@ -9,15 +9,21 @@ const AddEditModelModal = ({ isOpen, onClose, isEdit = false }) => {
   const { selectedCategory, selectedModel } = useSelector((state) => state.roleplay);
   const [name, setName] = useState('');
   const [iframeCode, setIframeCode] = useState('');
+  const [minScoreToPass, setMinScoreToPass] = useState(70); // Add this state
+  const [minAttemptsRequired, setMinAttemptsRequired] = useState(1); // Add this state
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (isEdit && selectedModel) {
       setName(selectedModel.name);
       setIframeCode(selectedModel.iframe_code);
+      setMinScoreToPass(selectedModel.min_score_to_pass || 70); // Set default value
+      setMinAttemptsRequired(selectedModel.min_attempts_required || 1); // Set default value
     } else {
       setName('');
       setIframeCode('');
+      setMinScoreToPass(70); // Reset to default
+      setMinAttemptsRequired(1); // Reset to default
     }
   }, [isEdit, selectedModel, isOpen]);
 
@@ -30,6 +36,8 @@ const AddEditModelModal = ({ isOpen, onClose, isEdit = false }) => {
       const data = {
         name: name.trim(),
         iframe_code: iframeCode.trim(),
+        min_score_to_pass: minScoreToPass, // Include new fields
+        min_attempts_required: minAttemptsRequired, // Include new fields
       };
 
       if (isEdit && selectedModel) {
@@ -46,6 +54,8 @@ const AddEditModelModal = ({ isOpen, onClose, isEdit = false }) => {
 
       setName('');
       setIframeCode('');
+      setMinScoreToPass(70);
+      setMinAttemptsRequired(1);
       onClose();
     } catch (error) {
       console.error('Failed to save model:', error);
@@ -73,6 +83,40 @@ const AddEditModelModal = ({ isOpen, onClose, isEdit = false }) => {
             onChange={(e) => setName(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter model name"
+            required
+          />
+        </div>
+
+        {/* Add Minimum Score Field */}
+        <div>
+          <label htmlFor="minScoreToPass" className="block text-sm font-medium text-gray-700 mb-2">
+            Minimum Score to Pass (%)
+          </label>
+          <input
+            type="number"
+            id="minScoreToPass"
+            min="0"
+            max="100"
+            value={minScoreToPass}
+            onChange={(e) => setMinScoreToPass(parseInt(e.target.value) || 0)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
+          />
+        </div>
+
+        {/* Add Minimum Attempts Field */}
+        <div>
+          <label htmlFor="minAttemptsRequired" className="block text-sm font-medium text-gray-700 mb-2">
+            Minimum Attempts Required
+          </label>
+          <input
+            type="number"
+            id="minAttemptsRequired"
+            min="1"
+            max="10"
+            value={minAttemptsRequired}
+            onChange={(e) => setMinAttemptsRequired(parseInt(e.target.value) || 1)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           />
         </div>

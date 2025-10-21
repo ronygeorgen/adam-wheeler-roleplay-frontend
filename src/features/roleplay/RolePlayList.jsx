@@ -187,6 +187,10 @@ const RolePlayList = ({ onAddCategory, onEditCategory, onAddModel, onEditModel }
                             <p className="text-xs text-gray-500 mt-1 font-mono truncate">
                               {model.iframe_code?.substring(0, 50)}...
                             </p>
+                            <div className="flex space-x-4">
+                              <span>Min Score: {model.min_score_to_pass}%</span>
+                              <span>Min Attempts: {model.min_attempts_required}</span>
+                            </div>
                           </div>
                           <div className="flex space-x-2">
                             <Button
