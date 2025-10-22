@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { RefreshCw, Users, Clapperboard, UserCheck, MapPin, ChevronDown, Check } from 'lucide-react';
+import { RefreshCw, Users, Clapperboard, UserCheck, MapPin, ChevronDown, Check, BarChart3  } from 'lucide-react';
 import UsersList from '../features/users/UsersList';
 import EditUserModal from '../features/users/EditUserModal';
 import UserReportModal from '../features/users/UserReportModal'; // Add this import
+import AdminDashboard from '../features/admin/AdminDashboard';
 import RolePlayList from '../features/roleplay/RolePlayList';
 import AddEditCategoryModal from '../features/roleplay/AddEditCategoryModal';
 import AddEditModelModal from '../features/roleplay/AddEditModelModal';
@@ -15,7 +16,7 @@ import { setSelectedCategory, setSelectedModel } from '../features/roleplay/role
 const AdminPage = () => {
   const dispatch = useDispatch();
   const { users, assigningCategories, locationsWithUsers, locationsLoading } = useSelector((state) => state.users);
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [isEditUserModalOpen, setIsEditUserModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false); // Add this state
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -29,6 +30,12 @@ const AdminPage = () => {
   const [hasLocationFromUrl, setHasLocationFromUrl] = useState(false);
 
   const location = useLocation();
+
+  const tabs = [
+    { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'roleplay', label: 'Role Play', icon: Clapperboard },
+  ];
   
   // Step 1: Get locationId from GHL query param
   useEffect(() => {
@@ -244,33 +251,25 @@ const AdminPage = () => {
           <div className="border-b border-gray-200">
             <div className="flex items-center justify-between px-6 py-4">
               <div className="flex space-x-2">
-                <button
-                  onClick={() => setActiveTab('users')}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                    activeTab === 'users'
-                      ? 'bg-[#DFF0D8] text-[#6EBE3A]'
-                      : 'text-[#333333] hover:bg-gray-50'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  <span>Users</span>
-                  {locationId && (
-                    <span className="bg-green-200 text-green-800 text-xs px-2 py-1 rounded-full">
-                      {userCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setActiveTab('roleplay')}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                    activeTab === 'roleplay'
-                      ? 'bg-[#DFF0D8] text-[#6EBE3A]'
-                      : 'text-[#333333] hover:bg-gray-50'
-                  }`}
-                >
-                  <Clapperboard className="w-4 h-4" />
-                  <span>Role Play</span>
-                </button>
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                      activeTab === tab.id
+                        ? 'bg-[#DFF0D8] text-[#6EBE3A]'
+                        : 'text-[#333333] hover:bg-gray-50'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                    {tab.id === 'users' && locationId && (
+                      <span className="bg-green-200 text-green-800 text-xs px-2 py-1 rounded-full">
+                        {userCount}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
 
               {activeTab === 'users' && locationId && (
@@ -300,6 +299,9 @@ const AdminPage = () => {
 
           {/* Tab Content */}
           <div className="p-6">
+            {activeTab === 'dashboard' && (
+              <AdminDashboard />
+            )}
             {activeTab === 'users' && (
               <div className="space-y-4">
                 {!locationId ? (
