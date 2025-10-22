@@ -300,7 +300,10 @@ const AdminPage = () => {
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'dashboard' && (
-              <AdminDashboard />
+              <AdminDashboard 
+                locationId={locationId}
+                selectedLocationName={selectedLocationName}
+              />
             )}
             {activeTab === 'users' && (
               <div className="space-y-4">
