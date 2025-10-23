@@ -77,8 +77,7 @@ const Navbar = () => {
           </div>
           
           <div className="flex items-center space-x-4">
-            {/* Onboard Button - Only show for admin */}
-           
+          {isAdmin && (
               <button
                 onClick={handleOnboard}
                 disabled={loading}
@@ -88,6 +87,7 @@ const Navbar = () => {
               >
                 {loading ? 'Processing...' : 'Onboard'}
               </button>
+            )}
            
             
             {/* User email display */}
