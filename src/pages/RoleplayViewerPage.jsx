@@ -156,7 +156,7 @@ const RoleplayViewerPage = () => {
         </div>
 
         {/* Main Content - Side by Side */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Left Side - Iframe */}
           <div className="space-y-4 lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -172,7 +172,7 @@ const RoleplayViewerPage = () => {
           </div>
 
           {/* Right Side - Feedback Form */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 lg:col-span-2">
             <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">
               Feedback Form
             </h2>
