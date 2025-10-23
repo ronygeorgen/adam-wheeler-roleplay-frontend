@@ -26,19 +26,15 @@ const Navbar = () => {
     
     setLoading(true);
     try {
-      const response = await axiosInstance.get('/accounts/auth/connect/');
-      // Handle the response as needed
-      console.log('Onboard response:', response.data);
-      
-      // If you need to redirect or do something with the response
-      // For example, if it returns a URL to redirect to:
-      if (response.data.redirect_url) {
-        window.location.href = response.data.redirect_url;
-      }
+      // Open OAuth in new window
+      window.open(
+        '/api/accounts/auth/connect/',
+        'ghl-auth',
+        'width=600,height=700,scrollbars=yes'
+      );
+      setLoading(false);
     } catch (error) {
       console.error('Onboard failed:', error);
-      // Handle error (show toast, message, etc.)
-    } finally {
       setLoading(false);
     }
   };
