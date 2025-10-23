@@ -28,7 +28,7 @@ const Navbar = () => {
     try {
       // Open OAuth in new window
       window.open(
-        '/api/accounts/auth/connect/',
+        '/accounts/auth/connect/',
         'ghl-auth',
         'width=600,height=700,scrollbars=yes'
       );
